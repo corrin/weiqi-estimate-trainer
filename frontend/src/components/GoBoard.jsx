@@ -1,5 +1,7 @@
 import { useEffect, useRef } from 'react'
-import { createBoard, STONE, createRenderer } from 'jgoboard'
+import { createBoard, STONE } from 'jgoboard/core'
+import { createRenderer } from 'jgoboard/renderer'
+import { kayaMedium } from 'jgoboard/presets'
 
 export default function GoBoard({ stones, size = 19 }) {
   const containerRef = useRef(null)
@@ -8,10 +10,12 @@ export default function GoBoard({ stones, size = 19 }) {
   useEffect(() => {
     if (!containerRef.current) return
 
+    const base = window.location.origin + '/jgoboard/'
+
     const renderer = createRenderer(containerRef.current, {
       board: createBoard({ size }),
-      theme: 'kaya-medium',
-      assetBaseUrl: '/jgoboard/',
+      theme: kayaMedium,
+      assetBaseUrl: base,
       pixelRatio: 1,
     })
     rendererRef.current = renderer
