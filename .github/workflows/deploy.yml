@@ -1,0 +1,21 @@
+name: Deploy
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to docketworks.site
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.UAT_HOST }}
+          username: ${{ secrets.UAT_USER }}
+          key: ${{ secrets.UAT_SSH_KEY }}
+          script: |
+            sudo -u weiqi git -C /opt/weiqi/app fetch origin
+            sudo -u weiqi git -C /opt/weiqi/app reset --hard origin/master
+            sudo -u weiqi /opt/weiqi/venv/bin/pip install -r /opt/weiqi/app/backend/requirements.txt
+            sudo -u weiqi bash -c 'cd /opt/weiqi/app/frontend && npm ci && npm run build'
+            sudo systemctl restart weiqi
