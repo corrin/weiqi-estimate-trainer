@@ -72,17 +72,6 @@ def serve_position(user=Depends(get_current_user)):
         ORDER BY RANDOM() LIMIT 1
     """).fetchone()
 
-    if not row:
-        row = con.execute("""
-            SELECT a.game_id, a.turn_analyzed as turn, g.filepath, g.komi, g.handicap, g.board_size, g.num_moves
-            FROM analysis a
-            JOIN games g ON a.game_id = g.id
-            ORDER BY RANDOM() LIMIT 1
-        """).fetchone()
-        is_predictive = False
-    else:
-        is_predictive = True
-
     con.close()
 
     if not row:
@@ -103,7 +92,6 @@ def serve_position(user=Depends(get_current_user)):
         "stones": pos["stones"],
         "last_move": pos["last_move"],
         "next_to_play": pos["next_to_play"],
-        "is_predictive": is_predictive,
     }
 
 

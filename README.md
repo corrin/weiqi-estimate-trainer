@@ -78,10 +78,11 @@ The app needs an SQLite database of analyzed Go games.
 
 ```bash
 # Step 1: Place SGF files in games/
-# Step 2: Parse them
+# Step 2: Parse them into games.db
 python phase1_parse.py
 
 # Step 3: Analyze with KataGo (requires KataGo binary + model)
+# Analyzes every qualifying turn (76..end-50), filtering for stable scores
 python phase2_analyze.py --max 1000
 ```
 

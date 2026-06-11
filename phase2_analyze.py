@@ -1,5 +1,8 @@
-"""Phase 2: KataGo analysis of eligible games (resumable).
-Usage: python phase2_analyze.py [--max N]"""
+"""Phase 2: Batch-analyze every qualifying turn of every game for predictive positions.
+Resumable. One KataGo query per batch of 50 turns.
+
+Usage: python phase2_analyze.py [--max GAMES] [--visits V]
+"""
 import sqlite3, subprocess, json, time, re, os, sys, signal, argparse
 
 DB = "games.db"
@@ -7,8 +10,10 @@ ROOT = "games"
 KATAGO = r"C:\Users\User\Documents\KaTrain\_internal\katrain\KataGo\katago.exe"
 MODEL = r"C:\Users\User\Documents\KaTrain\_internal\katrain\models\kata1-b18c384nbt-s9996604416-d4316597426.bin.gz"
 CONFIG = r"C:\Users\User\Documents\KaTrain\_internal\katrain\KataGo\analysis_config.cfg"
-MAX_VISITS = 500
-DEVIATION_THRESHOLD = 5.0
+
+BATCH_SIZE = 50
+MIN_TURN = 76
+MIN_FROM_END = 50
 
 SGF_COLS = 'abcdefghijklmnopqrs'
 GTP_COLS = 'ABCDEFGHJKLMNOPQRST'
@@ -17,10 +22,12 @@ S2G_ROW = {SGF_COLS[i]: 19 - i for i in range(19)}
 
 INTERRUPTED = False
 
+
 def sgf_to_gtp(s):
     if s in ('', 'tt'):
         return 'pass'
-    return f'{S2G_COL[s[0]]}{S2G_ROW[s[1]]}'
+    return '{}{}'.format(S2G_COL[s[0]], S2G_ROW[s[1]])
+
 
 def parse_moves(filepath):
     with open(filepath, 'rb') as f:
@@ -30,176 +37,239 @@ def parse_moves(filepath):
         moves.append([m.group(1), sgf_to_gtp(m.group(2))])
     return moves
 
+
 def start_katago():
     return subprocess.Popen(
         [KATAGO, 'analysis', '-config', CONFIG, '-model', MODEL],
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
     )
 
+
 def get_pending_games(con, max_games=None):
     sql = """
-        SELECT g.id, g.filepath, g.score_points, g.komi, g.num_moves, g.result_raw
+        SELECT g.id, g.filepath, g.score_points, g.komi, g.num_moves
         FROM games g
         WHERE g.result_type = 'score'
           AND g.board_size = 19
-          AND g.num_moves >= 100
-          AND NOT EXISTS (SELECT 1 FROM analysis a WHERE a.game_id = g.id)
+          AND g.num_moves >= ?
         ORDER BY g.id
     """
+    params = [MIN_TURN + MIN_FROM_END]
     if max_games is not None:
-        sql += f" LIMIT {int(max_games)}"
-    return con.execute(sql).fetchall()
+        sql += " LIMIT ?"
+        params.append(int(max_games))
+    return con.execute(sql, params).fetchall()
 
-def analyze_game(katago, game):
-    game_id, rel_path, score_points, komi, num_moves, result_raw = game
+
+def get_pending_turns(con, game_id, num_moves):
+    max_turn = num_moves - MIN_FROM_END
+    all_turns = list(range(MIN_TURN, max_turn + 1))
+    if not all_turns:
+        return []
+
+    existing = con.execute(
+        "SELECT turn FROM game_positions WHERE game_id = ?",
+        (game_id,),
+    ).fetchall()
+    existing_set = {e[0] for e in existing}
+
+    return [t for t in all_turns if t not in existing_set]
+
+
+def analyze_batch(katago, game, batch_turns, max_visits):
+    game_id, rel_path, score_points, komi, num_moves = game
     filepath = os.path.join(ROOT, rel_path)
 
     moves = parse_moves(filepath)
     if not moves:
         return None
 
-    target_turn = max(num_moves - 100, 1)
-    if target_turn > len(moves):
-        target_turn = len(moves)
+    max_turn = max(batch_turns)
+    if max_turn > len(moves):
+        batch_turns = [t for t in batch_turns if t <= len(moves)]
+        if not batch_turns:
+            return None
+        max_turn = max(batch_turns)
+
+    moves_to_send = moves[:max_turn]
 
     query = {
         'id': str(game_id),
         'rules': 'japanese',
         'komi': komi,
         'boardXSize': 19, 'boardYSize': 19,
-        'maxVisits': MAX_VISITS,
-        'analyzeTurns': [target_turn],
+        'maxVisits': max_visits,
+        'analyzeTurns': batch_turns,
         'includeOwnership': False, 'includePolicy': False,
         'initialStones': [], 'initialPlayer': 'B',
-        'moves': moves[:target_turn],
-        'overrideSettings': {'reportAnalysisWinratesAs': 'BLACK'}
+        'moves': moves_to_send,
+        'overrideSettings': {'reportAnalysisWinratesAs': 'BLACK'},
     }
 
     t0 = time.time()
     katago.stdin.write((json.dumps(query) + '\n').encode())
     katago.stdin.flush()
 
-    line = katago.stdout.readline()
-    elapsed = time.time() - t0
-    if not line:
-        return None
+    results = []
+    for _ in range(len(batch_turns)):
+        line = katago.stdout.readline()
+        elapsed = time.time() - t0
+        if not line:
+            break
+        try:
+            resp = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if 'error' in resp:
+            print("    Error: {}".format(resp['error'][:100]))
+            continue
 
-    try:
-        resp = json.loads(line)
-    except json.JSONDecodeError:
-        return None
+        turn = resp.get('turnNumber')
+        ri = resp.get('rootInfo', {})
+        score_lead = ri.get('scoreLead', 0)
+        visits = ri.get('visits', 0)
 
-    if 'error' in resp:
-        print(f"    Error: {resp['error'][:100]}")
-        return None
+        if turn is not None:
+            results.append({
+                'game_id': game_id,
+                'turn': turn,
+                'score_lead': score_lead,
+                'visits': visits,
+            })
 
-    ri = resp.get('rootInfo', {})
-    score_lead = ri.get('scoreLead', 0)
-    winrate = ri.get('winrate', 0)
-    visits = ri.get('visits', 0)
-    deviation = abs(score_lead - score_points)
+    return results
 
-    return {
-        'game_id': game_id,
-        'turn_analyzed': target_turn,
-        'score_lead': score_lead,
-        'winrate': winrate,
-        'deviation': deviation,
-        'visits': visits,
-        'time_taken': elapsed,
-        'pass': deviation <= DEVIATION_THRESHOLD,
-    }
 
 def main():
     global INTERRUPTED
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--max', type=int, default=None, help='Max games to analyze this run')
+    parser.add_argument('--max', type=int, default=None, help='Max games this run')
+    parser.add_argument('--visits', type=int, default=1000, help='KataGo visits per turn')
     args = parser.parse_args()
 
     def on_signal(sig, frame):
         global INTERRUPTED
         INTERRUPTED = True
-        print("\n*** Interrupt received, finishing current query and exiting...")
+        print("\n*** Interrupt received, finishing current batch and exiting...")
 
     signal.signal(signal.SIGINT, on_signal)
 
     con = sqlite3.connect(DB)
     con.execute("PRAGMA journal_mode=WAL")
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS game_positions (
+            game_id INTEGER NOT NULL REFERENCES games(id),
+            turn INTEGER NOT NULL,
+            score_lead REAL,
+            visits INTEGER,
+            PRIMARY KEY (game_id, turn)
+        )
+    """)
+    con.commit()
 
     pending = get_pending_games(con, max_games=args.max)
-    total = len(pending)
-    print(f"Games to analyze: {total}")
+    print("Games to process: {}".format(len(pending)))
+    print("Visits per turn: {}".format(args.visits))
+    print("Batch size: {}".format(BATCH_SIZE))
+
+    # Count total pending turns
+    total_turns = 0
+    for game in pending:
+        turns = get_pending_turns(con, game[0], game[4])
+        total_turns += len(turns)
+    print("Pending turns total: {}".format(total_turns))
+    print("Estimated batches: ~{}".format(-(-total_turns // BATCH_SIZE)))
+    if total_turns > 0:
+        est_hours = total_turns * (2.5 / BATCH_SIZE) * (args.visits / 500.0) / 3600
+        print("Estimated time: ~{:.1f} hours".format(est_hours))
 
     katago = start_katago()
     print("Starting KataGo...")
     time.sleep(5)
     print("Ready.\n")
 
-    analyzed = 0
-    passed = 0
+    turns_done = 0
+    batches_done = 0
     errors = 0
-    start_time = time.time()
-    session_start = start_time
+    session_start = time.time()
 
-    for i, game in enumerate(pending):
+    for game in pending:
         if INTERRUPTED:
             break
 
-        result = None
-        for attempt in range(3):
-            try:
-                result = analyze_game(katago, game)
-                break
-            except (BrokenPipeError, OSError):
-                print("  KataGo process died, restarting...")
-                try:
-                    katago.terminate()
-                except Exception:
-                    pass
-                katago = start_katago()
-                time.sleep(5)
-
-        if result is None:
-            errors += 1
-            if i % 100 == 0:
-                print(f"  [{i}/{total}] skipping game {game[0]} (error)")
+        game_id, rel_path, score_points, komi, num_moves = game
+        turns = get_pending_turns(con, game_id, num_moves)
+        if not turns:
             continue
 
-        analyzed += 1
-        if result['pass']:
-            passed += 1
+        game_turns_done = 0
+        for batch_start in range(0, len(turns), BATCH_SIZE):
+            if INTERRUPTED:
+                break
 
-        con.execute("""
-            INSERT OR REPLACE INTO analysis
-                (game_id, turn_analyzed, score_lead, winrate, deviation, visits, time_taken)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (result['game_id'], result['turn_analyzed'], result['score_lead'],
-              result['winrate'], result['deviation'], result['visits'], result['time_taken']))
-        con.commit()
+            batch_turns = turns[batch_start:batch_start + BATCH_SIZE]
 
-        # Progress every game
-        elapsed = time.time() - session_start
-        rate = (i + 1) / elapsed * 3600  # games/hour
-        remaining = total - (i + 1)
-        eta = remaining / rate if rate > 0 else 0
+            result = None
+            for attempt in range(3):
+                try:
+                    result = analyze_batch(katago, game, batch_turns, args.visits)
+                    break
+                except (BrokenPipeError, OSError):
+                    print("  KataGo process died, restarting...")
+                    try:
+                        katago.terminate()
+                    except Exception:
+                        pass
+                    katago = start_katago()
+                    time.sleep(5)
 
-        print(f"  [{i+1}/{total}] {'PASS' if result['pass'] else 'fail'}  "
-              f"game={game[0]}  dev={result['deviation']:.1f}  "
-              f"sc={result['score_lead']:+.1f} act={game[2]:+.1f}  "
-              f"{rate:.0f} g/h  ETA {eta:.1f}h  passed={passed}")
+            if result is None:
+                errors += 1
+                continue
 
-    # Cleanup
+            batch_turns_done = 0
+            for r in result:
+                con.execute(
+                    "INSERT OR IGNORE INTO game_positions (game_id, turn, score_lead, visits) VALUES (?, ?, ?, ?)",
+                    (r['game_id'], r['turn'], r['score_lead'], r['visits']),
+                )
+                batch_turns_done += 1
+            con.commit()
+
+            game_turns_done += batch_turns_done
+            turns_done += batch_turns_done
+            batches_done += 1
+
+            elapsed = time.time() - session_start
+            rate = turns_done / elapsed * 3600 if elapsed > 0 else 0
+            remaining = total_turns - turns_done
+            eta = remaining / rate if rate > 0 else 0
+            print("  [G{} batch {}/{}]  batch_turns={}  total_done={}/{}  {:.0f} t/h  ETA {:.1f}h".format(
+                game_id,
+                batch_start // BATCH_SIZE + 1,
+                -(-len(turns) // BATCH_SIZE),
+                batch_turns_done,
+                turns_done,
+                total_turns,
+                rate,
+                eta,
+            ))
+            sys.stdout.flush()
+
     con.close()
     try:
         katago.terminate()
     except Exception:
         pass
 
-    total_elapsed = time.time() - start_time
-    print(f"\n=== Complete ===")
-    print(f"Analyzed: {analyzed}  Passed: {passed}  Errors: {errors}")
-    print(f"Time: {total_elapsed/3600:.1f} hours")
+    elapsed = time.time() - session_start
+    print("\n=== Complete ===")
+    print("Turns analyzed: {}".format(turns_done))
+    print("Batches: {}".format(batches_done))
+    print("Errors: {}".format(errors))
+    print("Time: {:.1f} hours".format(elapsed / 3600))
+
 
 if __name__ == '__main__':
     main()

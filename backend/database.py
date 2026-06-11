@@ -43,5 +43,6 @@ def init_user_tables():
             PRIMARY KEY (game_id, turn)
         )
     """)
+    con.execute("DROP TABLE IF EXISTS analysis")
     con.commit()
     con.close()
