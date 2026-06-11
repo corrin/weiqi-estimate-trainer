@@ -34,5 +34,14 @@ def init_user_tables():
     """)
     con.execute("CREATE INDEX IF NOT EXISTS idx_guesses_user ON guesses(user_id)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_guesses_deviation ON guesses(deviation)")
+    con.execute("""
+        CREATE TABLE IF NOT EXISTS game_positions (
+            game_id INTEGER NOT NULL REFERENCES games(id),
+            turn INTEGER NOT NULL,
+            score_lead REAL,
+            visits INTEGER,
+            PRIMARY KEY (game_id, turn)
+        )
+    """)
     con.commit()
     con.close()

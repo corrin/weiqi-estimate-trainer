@@ -49,9 +49,9 @@ export default function Progress() {
   }
 
   const getRating = (dev) => {
-    if (dev <= 5) return { label: 'Excellent!', color: 'text-kaya-success' }
-    if (dev <= 15) return { label: 'Close', color: 'text-kaya-gold' }
-    if (dev <= 30) return { label: 'Not bad', color: 'text-kaya-wood' }
+    if (dev <= 3) return { label: 'Excellent!', color: 'text-kaya-success' }
+    if (dev <= 10) return { label: 'Close', color: 'text-kaya-gold' }
+    if (dev <= 25) return { label: 'Not bad', color: 'text-kaya-wood' }
     return { label: 'Way off', color: 'text-kaya-error' }
   }
 

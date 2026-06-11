@@ -15,6 +15,13 @@ export default function ResultOverlay({ result, onNext }) {
     'Way off': 'bg-kaya-error/5 border-kaya-error/20',
   }
 
+  const ratingSub = {
+    'Excellent!': 'Within 3 pts of the final result',
+    'Close': 'Within 10 pts',
+    'Not bad': 'Within 25 pts',
+    'Way off': 'More than 25 pts off',
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
       <div className="absolute inset-0 bg-kaya-bg/80 backdrop-blur-sm" onClick={onNext} />
@@ -24,7 +31,7 @@ export default function ResultOverlay({ result, onNext }) {
             {result.rating}
           </div>
           <div className="text-kaya-muted text-sm">
-            You were off by
+            {ratingSub[result.rating] || 'You were off by'}
           </div>
           <div className="text-4xl font-mono font-bold text-kaya-text">
             {result.deviation} <span className="text-xl text-kaya-muted">pts</span>

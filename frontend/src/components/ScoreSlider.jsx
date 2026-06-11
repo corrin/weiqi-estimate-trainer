@@ -29,7 +29,7 @@ export default function ScoreSlider({ onSubmit, loading }) {
   return (
     <div className="w-full max-w-md mx-auto p-4 sm:p-6 space-y-5">
       <h2 className="text-lg font-semibold text-center text-kaya-text font-serif">
-        Who&apos;s leading and by how much?
+        What will the final score be?
       </h2>
 
       <div className="flex gap-3 justify-center">

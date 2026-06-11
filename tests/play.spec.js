@@ -13,7 +13,7 @@ test('play page shows Go board', async ({ page }) => {
   await page.goto('/play');
   await page.waitForTimeout(2000);
 
-  await expect(page.locator('h2')).toContainText("Who's leading");
+  await expect(page.locator('h2')).toContainText("final score");
   await page.screenshot({ path: 'tests/screenshots/play.png', fullPage: true });
 });
 

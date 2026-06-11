@@ -63,30 +63,47 @@ def google_auth(req: GoogleAuthRequest):
 @router.get("/position")
 def serve_position(user=Depends(get_current_user)):
     con = get_db()
+
     row = con.execute("""
-        SELECT a.game_id, a.turn_analyzed, g.filepath, g.komi, g.handicap, g.board_size
-        FROM analysis a
-        JOIN games g ON a.game_id = g.id
+        SELECT gp.game_id, gp.turn, g.filepath, g.komi, g.handicap, g.board_size, g.num_moves
+        FROM game_positions gp
+        JOIN games g ON gp.game_id = g.id
+        WHERE abs(gp.score_lead - g.score_points) <= 3
         ORDER BY RANDOM() LIMIT 1
     """).fetchone()
+
+    if not row:
+        row = con.execute("""
+            SELECT a.game_id, a.turn_analyzed as turn, g.filepath, g.komi, g.handicap, g.board_size, g.num_moves
+            FROM analysis a
+            JOIN games g ON a.game_id = g.id
+            ORDER BY RANDOM() LIMIT 1
+        """).fetchone()
+        is_predictive = False
+    else:
+        is_predictive = True
+
     con.close()
 
     if not row:
         raise HTTPException(status_code=404, detail="No positions available")
 
-    pos = get_position(row["game_id"], row["filepath"], row["turn_analyzed"], row["komi"])
+    turn = row["turn"]
+
+    pos = get_position(row["game_id"], row["filepath"], turn, row["komi"])
     if not pos:
         raise HTTPException(status_code=500, detail="Failed to parse position")
 
     return {
         "game_id": row["game_id"],
-        "turn": row["turn_analyzed"],
-        "total_moves": pos["total_moves"],
+        "turn": turn,
+        "total_moves": row["num_moves"],
         "komi": row["komi"],
         "board_size": row["board_size"],
         "stones": pos["stones"],
         "last_move": pos["last_move"],
         "next_to_play": pos["next_to_play"],
+        "is_predictive": is_predictive,
     }
 
 
@@ -94,16 +111,16 @@ def serve_position(user=Depends(get_current_user)):
 def submit_guess(req: GuessRequest, user=Depends(get_current_user)):
     con = get_db()
 
-    analysis = con.execute(
-        "SELECT score_lead FROM analysis WHERE game_id = ?",
+    game = con.execute(
+        "SELECT score_points FROM games WHERE id = ?",
         (req.game_id,),
     ).fetchone()
 
-    if not analysis:
+    if not game:
         con.close()
         raise HTTPException(status_code=404, detail="Game not found")
 
-    actual_score = analysis["score_lead"]
+    actual_score = game["score_points"]
     deviation = abs(req.guessed_score - actual_score)
 
     con.execute(
@@ -113,11 +130,11 @@ def submit_guess(req: GuessRequest, user=Depends(get_current_user)):
     con.commit()
     con.close()
 
-    if deviation <= 5:
+    if deviation <= 3:
         rating = "Excellent!"
-    elif deviation <= 15:
+    elif deviation <= 10:
         rating = "Close"
-    elif deviation <= 30:
+    elif deviation <= 25:
         rating = "Not bad"
     else:
         rating = "Way off"
