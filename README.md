@@ -25,7 +25,7 @@ Train your Go positional judgment by guessing score differences from real profes
 ## Project structure
 
 ```
-weiqi_estimator/
+weiqi-estimate-trainer/
 ├── backend/
 │   ├── main.py          FastAPI app entry point
 │   ├── routes.py        API endpoints
@@ -47,7 +47,7 @@ weiqi_estimator/
 
 ```bash
 git clone https://github.com/yourname/weiqi-estimate-trainer.git
-cd weiqi_estimator
+cd weiqi-estimate-trainer
 
 # Backend
 python -m venv .venv

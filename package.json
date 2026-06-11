@@ -1,0 +1,13 @@
+{
+  "private": true,
+  "name": "weiqi-estimate-trainer",
+  "license": "GPL-3.0",
+  "scripts": {
+    "test": "playwright test",
+    "test:ui": "playwright test --ui",
+    "test:screenshot": "playwright test --project=screenshots"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.52.0"
+  }
+}

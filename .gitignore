@@ -33,5 +33,10 @@ count_eligible.txt
 .DS_Store
 Thumbs.db
 
+# Tests
+tests/screenshots/
+test-results/
+playwright-report/
+
 # Temp
 test_board.py
