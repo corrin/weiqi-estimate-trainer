@@ -4,9 +4,29 @@
 
 @layer base {
   :root {
-    --wood: #dea552;
-    --stone-black: #1a1a1a;
-    --stone-white: #f5f0e8;
+    --kaya-bg: 250 246 238;
+    --kaya-surface: 255 255 255;
+    --kaya-text: 61 46 28;
+    --kaya-muted: 139 115 85;
+    --kaya-border: 232 220 197;
+    --kaya-gold: 196 148 56;
+    --kaya-gold-light: 218 170 78;
+    --kaya-success: 90 138 74;
+    --kaya-error: 196 98 78;
+    --kaya-wood: 74 55 40;
+  }
+
+  .dark {
+    --kaya-bg: 26 21 16;
+    --kaya-surface: 42 34 24;
+    --kaya-text: 232 220 197;
+    --kaya-muted: 139 115 85;
+    --kaya-border: 61 51 38;
+    --kaya-gold: 196 148 56;
+    --kaya-gold-light: 218 170 78;
+    --kaya-success: 106 154 90;
+    --kaya-error: 212 114 94;
+    --kaya-wood: 61 46 28;
   }
 
   body {
