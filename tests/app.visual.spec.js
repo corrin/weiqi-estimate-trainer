@@ -2,7 +2,7 @@ import { test, expect } from '@playwright/test';
 
 test('splash page loads', async ({ page }) => {
   await page.goto('/');
-  await expect(page.locator('h1')).toContainText('estimate');
+  await expect(page.locator('h1')).toContainText('score sense');
   await page.screenshot({ path: 'tests/screenshots/splash.png', fullPage: true });
 });
 
@@ -13,8 +13,8 @@ test('splash shows Google sign-in', async ({ page }) => {
 
 test('splash shows stat cards', async ({ page }) => {
   await page.goto('/');
-  await expect(page.getByText('34k+')).toBeVisible();
-  await expect(page.getByText('KataGo', { exact: true })).toBeVisible();
+  await expect(page.getByText('Real games', { exact: true })).toBeVisible();
+  await expect(page.getByText('Instant', { exact: true })).toBeVisible();
   await expect(page.getByText('Free', { exact: true })).toBeVisible();
 });
 
@@ -33,11 +33,11 @@ test('splash privacy modal', async ({ page }) => {
 
 test('redirect to splash when unauthenticated', async ({ page }) => {
   await page.goto('/play');
-  await expect(page.locator('h1')).toContainText('estimate');
+  await expect(page.locator('h1')).toContainText('score sense');
 });
 
 test('splash on mobile', async ({ page }) => {
   await page.goto('/');
-  await expect(page.locator('h1')).toContainText('estimate');
+  await expect(page.locator('h1')).toContainText('score sense');
   await page.screenshot({ path: 'tests/screenshots/splash-mobile.png', fullPage: true });
 });

@@ -34,13 +34,14 @@ export default function Splash() {
       <main className="flex-1 flex flex-col items-center justify-center px-4 py-12 text-center space-y-8">
         <div className="space-y-4 max-w-lg">
           <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight font-serif">
-            <span className="text-kaya-text">How well can you</span>{' '}
-            <span className="text-kaya-gold">estimate</span>
-            <span className="text-kaya-text">?</span>
+            <span className="text-kaya-text">Sharpen your</span>{' '}
+            <span className="text-kaya-gold">score sense.</span>
           </h1>
           <p className="text-kaya-muted text-base sm:text-lg leading-relaxed">
-            Look at a Go board, guess the score difference. Train your positional
-            judgment against real professional games analyzed by KataGo.
+            Every strategic choice in Go &mdash; invade or simplify, fight or
+            settle &mdash; depends on knowing who&apos;s ahead. Train your
+            ability to estimate the score from any position, and build the
+            judgment that wins games.
           </p>
         </div>
 
@@ -86,16 +87,16 @@ export default function Splash() {
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl w-full mt-8">
           <div className="bg-kaya-surface border border-kaya-border rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-kaya-gold font-serif">34k+</div>
-            <div className="text-xs text-kaya-muted mt-1">Pro games analyzed</div>
+            <div className="text-2xl font-bold text-kaya-gold font-serif">Real games</div>
+            <div className="text-xs text-kaya-muted mt-1">Authentic positions</div>
           </div>
           <div className="bg-kaya-surface border border-kaya-border rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-kaya-gold font-serif">KataGo</div>
-            <div className="text-xs text-kaya-muted mt-1">Score evaluation</div>
+            <div className="text-2xl font-bold text-kaya-gold font-serif">Instant</div>
+            <div className="text-xs text-kaya-muted mt-1">Accuracy feedback</div>
           </div>
           <div className="bg-kaya-surface border border-kaya-border rounded-xl p-4 text-center">
             <div className="text-2xl font-bold text-kaya-gold font-serif">Free</div>
-            <div className="text-xs text-kaya-muted mt-1">No ads, no cost</div>
+            <div className="text-xs text-kaya-muted mt-1">&amp; open source</div>
           </div>
         </div>
       </main>
@@ -115,9 +116,10 @@ export default function Splash() {
           <div className="relative w-full max-w-md bg-kaya-surface border border-kaya-border rounded-2xl p-6 space-y-4 shadow-2xl">
             <h3 className="text-lg font-bold text-kaya-text font-serif">Privacy</h3>
             <p className="text-sm text-kaya-muted leading-relaxed">
-              Weiqi Estimate Trainer uses Google Sign-In for authentication. We receive only your email
-              address and name from Google. We store your email, guess history, and accuracy stats.
-              We don&apos;t share your data with anyone. We don&apos;t use tracking or analytics.
+              Weiqi Estimate Trainer uses Google Sign-In for authentication. We receive your email
+              address and name from Google. Your guesses are stored against your account to track your
+              progress and to help us understand which positions are challenging. We don&apos;t share
+              your data with third parties. We don&apos;t show ads or sell data.
             </p>
             <button
               onClick={() => setShowPrivacy(false)}
