@@ -11,8 +11,8 @@ export default function ScoreSlider({ onSubmit, loading }) {
   }
 
   const formatScore = (val) => {
-    const v = parseFloat(val)
-    if (Math.abs(v) <= 0.5) return 'Even'
+    const v = parseInt(val)
+    if (v === 0) return 'Even'
     return v > 0 ? `B+${v}` : `W+${Math.abs(v)}`
   }
 
@@ -50,7 +50,7 @@ export default function ScoreSlider({ onSubmit, loading }) {
           type="range"
           min="-50"
           max="50"
-          step="0.5"
+          step="1"
           value={score}
           onChange={(e) => setScore(parseFloat(e.target.value))}
           className="w-full h-3 rounded-full appearance-none cursor-pointer
