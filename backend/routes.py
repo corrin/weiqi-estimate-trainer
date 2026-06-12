@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Header
+from fastapi import APIRouter, HTTPException, Depends, Header, Query
 from pydantic import BaseModel
 import random
 
@@ -63,31 +63,42 @@ def google_auth(req: GoogleAuthRequest):
 
 
 @router.get("/position")
-def serve_position(user=Depends(get_current_user)):
+def serve_position(
+    user=Depends(get_current_user),
+    game_id: int | None = Query(None),
+    turn: int | None = Query(None),
+):
     con = get_db()
 
-    row = con.execute("""
-        SELECT gp.game_id, gp.turn, g.filepath, g.komi, g.handicap, g.board_size, g.num_moves
-        FROM game_positions gp
-        JOIN games g ON gp.game_id = g.id
-        WHERE abs(gp.score_lead - g.score_points) <= 3
-        ORDER BY RANDOM() LIMIT 1
-    """).fetchone()
+    if game_id is not None and turn is not None:
+        row = con.execute("""
+            SELECT gp.game_id, gp.turn, g.filepath, g.komi, g.handicap, g.board_size, g.num_moves
+            FROM game_positions gp
+            JOIN games g ON gp.game_id = g.id
+            WHERE gp.game_id = ? AND gp.turn = ?
+        """, (game_id, turn)).fetchone()
+    else:
+        row = con.execute("""
+            SELECT gp.game_id, gp.turn, g.filepath, g.komi, g.handicap, g.board_size, g.num_moves
+            FROM game_positions gp
+            JOIN games g ON gp.game_id = g.id
+            WHERE abs(gp.score_lead - g.score_points) <= 3
+            ORDER BY RANDOM() LIMIT 1
+        """).fetchone()
 
     con.close()
 
     if not row:
         raise HTTPException(status_code=404, detail="No positions available")
 
-    turn = row["turn"]
-
-    pos = get_position(row["game_id"], row["filepath"], turn, row["komi"])
+    pos = get_position(row["game_id"], row["filepath"], row["turn"], row["komi"])
     if not pos:
         raise HTTPException(status_code=500, detail="Failed to parse position")
 
     return {
         "game_id": row["game_id"],
-        "turn": turn,
+        "turn": row["turn"],
+        "ref": "G{}T{}".format(row["game_id"], row["turn"]),
         "total_moves": row["num_moves"],
         "komi": row["komi"],
         "board_size": row["board_size"],

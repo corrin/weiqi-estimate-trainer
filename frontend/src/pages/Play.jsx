@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, useSearchParams } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import ThemeToggle from '../components/ThemeToggle'
 import { api } from '../api'
@@ -9,26 +9,34 @@ import ResultOverlay from '../components/ResultOverlay'
 
 export default function Play() {
   const { user, logout } = useAuth()
+  const [searchParams] = useSearchParams()
   const [position, setPosition] = useState(null)
   const [result, setResult] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [copied, setCopied] = useState(false)
 
-  const fetchPosition = useCallback(async () => {
+  const fetchPosition = useCallback(async (specific = false) => {
     setLoading(true)
     setResult(null)
     setError(null)
     try {
-      const data = await api('/position')
+      let url = '/position'
+      if (specific) {
+        const g = searchParams.get('game')
+        const t = searchParams.get('turn')
+        if (g && t) url = `/position?game_id=${g}&turn=${t}`
+      }
+      const data = await api(url)
       setPosition(data)
     } catch (e) {
       setError(e.message || 'Failed to load position')
     }
     setLoading(false)
-  }, [])
+  }, [searchParams])
 
   useEffect(() => {
-    fetchPosition()
+    fetchPosition(true)
   }, [fetchPosition])
 
   const handleGuess = async (guessedScore) => {
@@ -45,6 +53,13 @@ export default function Play() {
     } catch (e) {
       setError(e.message || 'Failed to submit guess')
     }
+  }
+
+  const handleCopyRef = () => {
+    const url = `${window.location.origin}/play?game=${position.game_id}&turn=${position.turn}`
+    navigator.clipboard.writeText(url)
+    setCopied(true)
+    setTimeout(() => setCopied(false), 1500)
   }
 
   return (
@@ -87,7 +102,14 @@ export default function Play() {
         ) : position ? (
           <div className="w-full space-y-4">
             <div className="flex items-center justify-between text-xs text-kaya-muted px-1">
-              <span>Move {position.turn} / {position.total_moves}</span>
+              <button
+                onClick={handleCopyRef}
+                className="font-mono hover:text-kaya-gold transition-colors"
+                title="Copy link to this position"
+              >
+                #{position.game_id}:{position.turn}
+                {copied && <span className="ml-1 text-kaya-success">copied</span>}
+              </button>
               <span>{position.next_to_play} to play</span>
               <span>Komi 7.0</span>
             </div>
