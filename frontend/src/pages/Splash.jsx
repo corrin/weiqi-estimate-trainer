@@ -67,12 +67,14 @@ export default function Splash() {
                 >
                   My progress
                 </button>
-                <button
-                  onClick={() => navigate('/leaderboard')}
-                  className="px-4 py-2 rounded-lg text-xs text-kaya-muted hover:text-kaya-text hover:bg-kaya-border/50 transition-all"
-                >
-                  Leaderboard
-                </button>
+                {user.is_admin && (
+                  <button
+                    onClick={() => navigate('/leaderboard')}
+                    className="px-4 py-2 rounded-lg text-xs text-kaya-muted hover:text-kaya-text hover:bg-kaya-border/50 transition-all"
+                  >
+                    Leaderboard
+                  </button>
+                )}
               </div>
             </div>
           ) : (

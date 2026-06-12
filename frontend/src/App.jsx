@@ -24,6 +24,14 @@ function RequireAuth({ children }) {
   return children
 }
 
+function RequireAdmin({ children }) {
+  const { user, loading } = useAuth()
+
+  if (loading) return null
+  if (!user?.is_admin) return <Navigate to="/" replace />
+  return children
+}
+
 export default function App() {
   return (
     <ThemeProvider>
@@ -39,7 +47,14 @@ export default function App() {
                 </RequireAuth>
               }
             />
-            <Route path="/leaderboard" element={<Leaderboard />} />
+            <Route
+              path="/leaderboard"
+              element={
+                <RequireAdmin>
+                  <Leaderboard />
+                </RequireAdmin>
+              }
+            />
             <Route
               path="/progress"
               element={

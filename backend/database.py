@@ -18,9 +18,14 @@ def init_user_tables():
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT UNIQUE NOT NULL,
             display_name TEXT,
+            is_admin INTEGER DEFAULT 0,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     """)
+    try:
+        con.execute("ALTER TABLE users ADD COLUMN is_admin INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
     con.execute("""
         CREATE TABLE IF NOT EXISTS guesses (
             id INTEGER PRIMARY KEY AUTOINCREMENT,

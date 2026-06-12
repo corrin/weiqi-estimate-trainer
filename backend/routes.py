@@ -44,20 +44,22 @@ def google_auth(req: GoogleAuthRequest):
     name = info.get("name", email)
 
     con = get_db()
-    user = con.execute("SELECT id FROM users WHERE email = ?", (email,)).fetchone()
+    user = con.execute("SELECT id, is_admin FROM users WHERE email = ?", (email,)).fetchone()
     if user:
         user_id = user["id"]
+        is_admin = bool(user["is_admin"])
     else:
         cur = con.execute(
             "INSERT INTO users (email, display_name) VALUES (?, ?)",
             (email, name),
         )
         user_id = cur.lastrowid
+        is_admin = False
         con.commit()
     con.close()
 
     token = create_session_token(user_id, email)
-    return {"token": token, "user": {"id": user_id, "email": email, "name": name}}
+    return {"token": token, "user": {"id": user_id, "email": email, "name": name, "is_admin": is_admin}}
 
 
 @router.get("/position")
@@ -166,8 +168,13 @@ def user_stats(user=Depends(get_current_user)):
 
 
 @router.get("/leaderboard")
-def leaderboard():
+def leaderboard(user=Depends(get_current_user)):
     con = get_db()
+    admin_row = con.execute("SELECT is_admin FROM users WHERE id = ?", (user["user_id"],)).fetchone()
+    if not admin_row or not admin_row["is_admin"]:
+        con.close()
+        raise HTTPException(status_code=403, detail="Admin only")
+
     rows = con.execute("""
         SELECT
             u.id,

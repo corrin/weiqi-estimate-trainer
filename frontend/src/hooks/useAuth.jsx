@@ -15,12 +15,14 @@ export function AuthProvider({ children }) {
           setUser({
             email: localStorage.getItem('email'),
             name: localStorage.getItem('name'),
+            is_admin: localStorage.getItem('is_admin') === 'true',
           })
         })
         .catch(() => {
           localStorage.removeItem('token')
           localStorage.removeItem('email')
           localStorage.removeItem('name')
+          localStorage.removeItem('is_admin')
         })
         .finally(() => setLoading(false))
     } else {
@@ -36,6 +38,7 @@ export function AuthProvider({ children }) {
     localStorage.setItem('token', data.token)
     localStorage.setItem('email', data.user.email)
     localStorage.setItem('name', data.user.name)
+    localStorage.setItem('is_admin', String(!!data.user.is_admin))
     setUser(data.user)
   }
 
@@ -43,6 +46,7 @@ export function AuthProvider({ children }) {
     localStorage.removeItem('token')
     localStorage.removeItem('email')
     localStorage.removeItem('name')
+    localStorage.removeItem('is_admin')
     setUser(null)
   }
 

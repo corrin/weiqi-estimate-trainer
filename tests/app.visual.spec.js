@@ -1,5 +1,7 @@
 import { test, expect } from '@playwright/test';
 
+const TEST_TOKEN = process.env.TEST_TOKEN;
+
 test('splash page loads', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('h1')).toContainText('score sense');
@@ -19,6 +21,16 @@ test('splash shows stat cards', async ({ page }) => {
 });
 
 test('leaderboard loads', async ({ page }) => {
+  test.skip(!TEST_TOKEN, 'TEST_TOKEN env var not set');
+
+  await page.goto('/');
+  await page.evaluate((token) => {
+    localStorage.setItem('token', token);
+    localStorage.setItem('is_admin', 'true');
+    localStorage.setItem('email', 'test@test.com');
+    localStorage.setItem('name', 'Test');
+  }, TEST_TOKEN);
+
   await page.goto('/leaderboard');
   await expect(page.locator('h2')).toContainText('Leaderboard');
   await page.screenshot({ path: 'tests/screenshots/leaderboard.png', fullPage: true });

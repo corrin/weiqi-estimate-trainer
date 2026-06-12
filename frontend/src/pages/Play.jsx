@@ -54,9 +54,11 @@ export default function Play() {
           Weiqi Estimate Trainer
         </Link>
         <div className="flex items-center gap-3">
-          <Link to="/leaderboard" className="text-xs text-kaya-muted hover:text-kaya-text transition-colors">
-            Leaderboard
-          </Link>
+          {user.is_admin && (
+            <Link to="/leaderboard" className="text-xs text-kaya-muted hover:text-kaya-text transition-colors">
+              Leaderboard
+            </Link>
+          )}
           <Link to="/progress" className="text-xs text-kaya-muted hover:text-kaya-text transition-colors">
             Progress
           </Link>
