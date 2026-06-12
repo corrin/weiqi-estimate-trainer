@@ -1,9 +1,9 @@
 import { useEffect, useRef } from 'react'
-import { createBoard, STONE } from 'jgoboard/core'
+import { createBoard, STONE, MARK } from 'jgoboard/core'
 import { createRenderer } from 'jgoboard/renderer'
 import { kayaMedium } from 'jgoboard/presets'
 
-export default function GoBoard({ stones, size = 19 }) {
+export default function GoBoard({ stones, size = 19, lastMove }) {
   const containerRef = useRef(null)
   const rendererRef = useRef(null)
 
@@ -42,9 +42,12 @@ export default function GoBoard({ stones, size = 19 }) {
         try { board.setStone(coord, STONE.WHITE) } catch (e) {}
       }
     }
+    if (lastMove) {
+      try { board.setMark(lastMove, MARK.TRIANGLE) } catch (e) {}
+    }
     rendererRef.current.setBoard(board)
     rendererRef.current.render()
-  }, [stones, size])
+  }, [stones, size, lastMove])
 
   return (
     <div className="w-full flex justify-center overflow-hidden">
