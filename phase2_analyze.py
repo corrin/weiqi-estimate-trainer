@@ -155,7 +155,7 @@ def query_chinese_final(katago, game, max_visits):
         'boardXSize': 19, 'boardYSize': 19,
         'maxVisits': max_visits,
         'analyzeTurns': [len(moves)],
-        'includeOwnership': False, 'includePolicy': False,
+        'includeOwnership': True, 'includePolicy': False,
         'initialStones': [], 'initialPlayer': 'B',
         'moves': moves,
         'overrideSettings': {'reportAnalysisWinratesAs': 'BLACK'},
@@ -177,8 +177,13 @@ def query_chinese_final(katago, game, max_visits):
         print("    Chinese query error: {}".format(resp['error'][:100]))
         return None
 
-    ri = resp.get('rootInfo', {})
-    return ri.get('scoreLead', 0)
+    ownership = resp.get('ownership')
+    if not ownership or len(ownership) != 361:
+        return None
+
+    area_diff = sum(ownership)
+    chinese_score = area_diff - 7.0
+    return round(chinese_score / 2) * 2
 
 
 def needs_chinese_score(con, game_id):
@@ -253,62 +258,61 @@ def main():
 
         game_id, rel_path, score_points, komi, num_moves = game
         turns = get_pending_turns(con, game_id, num_moves)
-        if not turns:
-            continue
 
         game_turns_done = 0
-        for batch_start in range(0, len(turns), BATCH_SIZE):
-            if INTERRUPTED:
-                break
-
-            batch_turns = turns[batch_start:batch_start + BATCH_SIZE]
-
-            result = None
-            for attempt in range(3):
-                try:
-                    result = analyze_batch(katago, game, batch_turns, args.visits)
+        if turns:
+            for batch_start in range(0, len(turns), BATCH_SIZE):
+                if INTERRUPTED:
                     break
-                except (BrokenPipeError, OSError):
-                    print("  KataGo process died, restarting...")
+
+                batch_turns = turns[batch_start:batch_start + BATCH_SIZE]
+
+                result = None
+                for attempt in range(3):
                     try:
-                        katago.terminate()
-                    except Exception:
-                        pass
-                    katago = start_katago()
-                    time.sleep(5)
+                        result = analyze_batch(katago, game, batch_turns, args.visits)
+                        break
+                    except (BrokenPipeError, OSError):
+                        print("  KataGo process died, restarting...")
+                        try:
+                            katago.terminate()
+                        except Exception:
+                            pass
+                        katago = start_katago()
+                        time.sleep(5)
 
-            if result is None:
-                errors += 1
-                continue
+                if result is None:
+                    errors += 1
+                    continue
 
-            batch_turns_done = 0
-            for r in result:
-                con.execute(
-                    "INSERT OR IGNORE INTO game_positions (game_id, turn, score_lead, visits) VALUES (?, ?, ?, ?)",
-                    (r['game_id'], r['turn'], r['score_lead'], r['visits']),
-                )
-                batch_turns_done += 1
-            con.commit()
+                batch_turns_done = 0
+                for r in result:
+                    con.execute(
+                        "INSERT OR IGNORE INTO game_positions (game_id, turn, score_lead, visits) VALUES (?, ?, ?, ?)",
+                        (r['game_id'], r['turn'], r['score_lead'], r['visits']),
+                    )
+                    batch_turns_done += 1
+                con.commit()
 
-            game_turns_done += batch_turns_done
-            turns_done += batch_turns_done
-            batches_done += 1
+                game_turns_done += batch_turns_done
+                turns_done += batch_turns_done
+                batches_done += 1
 
-            elapsed = time.time() - session_start
-            rate = turns_done / elapsed * 3600 if elapsed > 0 else 0
-            remaining = total_turns - turns_done
-            eta = remaining / rate if rate > 0 else 0
-            print("  [G{} batch {}/{}]  batch_turns={}  total_done={}/{}  {:.0f} t/h  ETA {:.1f}h".format(
-                game_id,
-                batch_start // BATCH_SIZE + 1,
-                -(-len(turns) // BATCH_SIZE),
-                batch_turns_done,
-                turns_done,
-                total_turns,
-                rate,
-                eta,
-            ))
-            sys.stdout.flush()
+                elapsed = time.time() - session_start
+                rate = turns_done / elapsed * 3600 if elapsed > 0 else 0
+                remaining = total_turns - turns_done
+                eta = remaining / rate if rate > 0 else 0
+                print("  [G{} batch {}/{}]  batch_turns={}  total_done={}/{}  {:.0f} t/h  ETA {:.1f}h".format(
+                    game_id,
+                    batch_start // BATCH_SIZE + 1,
+                    -(-len(turns) // BATCH_SIZE),
+                    batch_turns_done,
+                    turns_done,
+                    total_turns,
+                    rate,
+                    eta,
+                ))
+                sys.stdout.flush()
 
         if INTERRUPTED:
             break
@@ -321,7 +325,7 @@ def main():
                     (chinese, game_id),
                 )
                 con.commit()
-                print("  [G{} Chinese score: {:.1f}]".format(game_id, chinese))
+                print("  [G{} Chinese score: {}]".format(game_id, chinese))
                 sys.stdout.flush()
             else:
                 print("  [G{} Chinese query failed]".format(game_id))
