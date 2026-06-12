@@ -1,17 +1,19 @@
 import { useState } from 'react'
 
 export default function ScoreSlider({ onSubmit, loading }) {
-  const [side, setSide] = useState(null)
-  const [points, setPoints] = useState(6.5)
+  const [score, setScore] = useState(0)
   const [submitting, setSubmitting] = useState(false)
 
   const handleSubmit = async () => {
-    if (side === null) return
     setSubmitting(true)
-    const sign = side === 'B' ? 1 : -1
-    const guessedScore = sign * points
-    await onSubmit(guessedScore)
+    await onSubmit(score)
     setSubmitting(false)
+  }
+
+  const formatScore = (val) => {
+    const v = parseFloat(val)
+    if (Math.abs(v) <= 0.5) return 'Even'
+    return v > 0 ? `B+${v}` : `W+${Math.abs(v)}`
   }
 
   if (loading) {
@@ -32,75 +34,53 @@ export default function ScoreSlider({ onSubmit, loading }) {
         What will the final score be?
       </h2>
 
-      <div className="flex gap-3 justify-center">
-        <button
-          onClick={() => setSide('B')}
-          className={`flex-1 py-3 rounded-xl font-medium text-sm transition-all
-            ${side === 'B'
-              ? 'bg-kaya-wood text-white ring-2 ring-kaya-gold shadow-lg shadow-kaya-gold/20'
-              : 'bg-kaya-surface border border-kaya-border text-kaya-muted hover:bg-kaya-border/50'
-            }`}
-        >
-          <span className="flex items-center justify-center gap-2">
-            <span className="w-4 h-4 rounded-full bg-kaya-wood border border-kaya-border" />
-            Black leads
-          </span>
-        </button>
-        <button
-          onClick={() => setSide('W')}
-          className={`flex-1 py-3 rounded-xl font-medium text-sm transition-all
-            ${side === 'W'
-              ? 'bg-kaya-text text-kaya-bg ring-2 ring-kaya-gold shadow-lg shadow-kaya-text/20'
-              : 'bg-kaya-surface border border-kaya-border text-kaya-muted hover:bg-kaya-border/50'
-            }`}
-        >
-          <span className="flex items-center justify-center gap-2">
-            <span className="w-4 h-4 rounded-full bg-kaya-bg border border-kaya-border" />
-            White leads
-          </span>
-        </button>
+      <div className="text-center">
+        <span className="text-3xl font-bold font-serif text-kaya-gold">
+          {formatScore(score)}
+        </span>
       </div>
 
-      {side && (
-        <div className="space-y-4 animate-fade-in">
-          <div>
-            <div className="flex justify-between text-sm text-kaya-muted mb-2">
-              <span>by 0.5 pts</span>
-              <span className="text-2xl font-bold text-kaya-gold font-serif">{points} pts</span>
-              <span>by 50+ pts</span>
-            </div>
-            <input
-              type="range"
-              min="0.5"
-              max="50"
-              step="0.5"
-              value={points}
-              onChange={(e) => setPoints(parseFloat(e.target.value))}
-              className="w-full h-2 bg-kaya-border rounded-lg appearance-none cursor-pointer
-                accent-kaya-gold [&::-webkit-slider-thumb]:w-6 [&::-webkit-slider-thumb]:h-6
-                [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-lg
-                [&::-webkit-slider-thumb]:bg-kaya-gold [&::-webkit-slider-thumb]:border-2
-                [&::-webkit-slider-thumb]:border-kaya-bg"
-            />
-            <div className="flex justify-between text-xs text-kaya-muted mt-1">
-              <span>0.5</span>
-              <span>25</span>
-              <span>50+</span>
-            </div>
-          </div>
-
-          <button
-            onClick={handleSubmit}
-            disabled={submitting}
-            className="w-full py-3.5 rounded-xl font-semibold text-sm
-              bg-gradient-to-r from-kaya-gold to-kaya-gold-light hover:from-kaya-gold-light hover:to-kaya-gold
-              text-white transition-all shadow-lg shadow-kaya-gold/25
-              disabled:opacity-50 active:scale-[0.98]"
-          >
-            {submitting ? 'Checking...' : `Guess: ${side === 'B' ? 'Black' : 'White'} +${points}`}
-          </button>
+      <div className="space-y-1">
+        <div className="flex justify-between text-xs text-kaya-muted px-1">
+          <span>W+50+</span>
+          <span>Even</span>
+          <span>B+50+</span>
         </div>
-      )}
+        <input
+          type="range"
+          min="-50"
+          max="50"
+          step="0.5"
+          value={score}
+          onChange={(e) => setScore(parseFloat(e.target.value))}
+          className="w-full h-3 rounded-full appearance-none cursor-pointer
+            bg-[linear-gradient(to_right,rgb(var(--kaya-bg))_0%,rgb(var(--kaya-border))_48%,rgb(var(--kaya-gold))_50%,rgb(var(--kaya-border))_52%,rgb(var(--kaya-wood))_100%)]
+            accent-kaya-gold
+            [&::-webkit-slider-thumb]:w-7 [&::-webkit-slider-thumb]:h-7
+            [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-lg
+            [&::-webkit-slider-thumb]:bg-kaya-gold [&::-webkit-slider-thumb]:border-2
+            [&::-webkit-slider-thumb]:border-white [&::-webkit-slider-thumb]:appearance-none
+            [&::-moz-range-thumb]:w-7 [&::-moz-range-thumb]:h-7
+            [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:bg-kaya-gold
+            [&::-moz-range-thumb]:border-2 [&::-moz-range-thumb]:border-white"
+        />
+        <div className="flex justify-between text-xs text-kaya-muted px-1">
+          <span>White led</span>
+          <span>Even</span>
+          <span>Black led</span>
+        </div>
+      </div>
+
+      <button
+        onClick={handleSubmit}
+        disabled={submitting}
+        className="w-full py-3.5 rounded-xl font-semibold text-sm
+          bg-gradient-to-r from-kaya-gold to-kaya-gold-light hover:from-kaya-gold-light hover:to-kaya-gold
+          text-white transition-all shadow-lg shadow-kaya-gold/25
+          disabled:opacity-50 active:scale-[0.98]"
+      >
+        {submitting ? 'Checking...' : `Guess: ${formatScore(score)}`}
+      </button>
     </div>
   )
 }
