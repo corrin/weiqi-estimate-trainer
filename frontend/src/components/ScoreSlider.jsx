@@ -12,8 +12,7 @@ export default function ScoreSlider({ onSubmit, loading }) {
 
   const formatScore = (val) => {
     const v = parseInt(val)
-    if (v === 0) return 'Even'
-    return v > 0 ? `B+${v}` : `W+${Math.abs(v)}`
+    return v >= 0 ? `B+${v}` : `W+${Math.abs(v)}`
   }
 
   if (loading) {
@@ -43,7 +42,7 @@ export default function ScoreSlider({ onSubmit, loading }) {
       <div className="space-y-1">
         <div className="flex justify-between text-xs text-kaya-muted px-1">
           <span>W+50+</span>
-          <span>Even</span>
+          <span />
           <span>B+50+</span>
         </div>
         <input
@@ -66,7 +65,7 @@ export default function ScoreSlider({ onSubmit, loading }) {
         />
         <div className="flex justify-between text-xs text-kaya-muted px-1">
           <span>White led</span>
-          <span>Even</span>
+          <span />
           <span>Black led</span>
         </div>
       </div>
