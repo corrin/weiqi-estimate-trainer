@@ -89,7 +89,7 @@ export default function Play() {
             <div className="flex items-center justify-between text-xs text-kaya-muted px-1">
               <span>Move {position.turn} / {position.total_moves}</span>
               <span>{position.next_to_play} to play</span>
-              <span>Komi {position.komi}</span>
+              <span>Komi 7.0</span>
             </div>
 
             <div className="border-4 border-kaya-wood rounded-sm bg-kaya-surface overflow-hidden shadow-xl">

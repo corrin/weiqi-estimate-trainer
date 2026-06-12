@@ -44,7 +44,7 @@ test('guess submission works', async ({ request }) => {
 
   const guessRes = await request.post('/api/guess', {
     headers: { Authorization: `Bearer ${TEST_TOKEN}` },
-    data: { game_id: position.game_id, guessed_score: 5.5 },
+    data: { game_id: position.game_id, guessed_score: 4 },
   });
   expect(guessRes.status()).toBe(200);
   const result = await guessRes.json();

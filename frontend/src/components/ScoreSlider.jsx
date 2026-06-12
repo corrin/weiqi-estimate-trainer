@@ -12,7 +12,8 @@ export default function ScoreSlider({ onSubmit, loading }) {
 
   const formatScore = (val) => {
     const v = parseInt(val)
-    return v >= 0 ? `B+${v}` : `W+${Math.abs(v)}`
+    if (v === 0) return 'Jigo'
+    return v > 0 ? `B+${v}` : `W+${Math.abs(v)}`
   }
 
   if (loading) {
@@ -49,7 +50,7 @@ export default function ScoreSlider({ onSubmit, loading }) {
           type="range"
           min="-50"
           max="50"
-          step="1"
+          step="2"
           value={score}
           onChange={(e) => setScore(parseFloat(e.target.value))}
           className="w-full h-3 rounded-full appearance-none cursor-pointer

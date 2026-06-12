@@ -102,7 +102,7 @@ def submit_guess(req: GuessRequest, user=Depends(get_current_user)):
     con = get_db()
 
     game = con.execute(
-        "SELECT score_points FROM games WHERE id = ?",
+        "SELECT score_points, komi FROM games WHERE id = ?",
         (req.game_id,),
     ).fetchone()
 
@@ -110,7 +110,7 @@ def submit_guess(req: GuessRequest, user=Depends(get_current_user)):
         con.close()
         raise HTTPException(status_code=404, detail="Game not found")
 
-    actual_score = game["score_points"]
+    actual_score = game["score_points"] + game["komi"] - 7.0
     deviation = abs(req.guessed_score - actual_score)
 
     con.execute(
