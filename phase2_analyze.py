@@ -140,6 +140,55 @@ def analyze_batch(katago, game, batch_turns, max_visits):
     return results
 
 
+def query_chinese_final(katago, game, max_visits):
+    game_id, rel_path, score_points, komi, num_moves = game
+    filepath = os.path.join(ROOT, rel_path)
+
+    moves = parse_moves(filepath)
+    if not moves:
+        return None
+
+    query = {
+        'id': 'c{}'.format(game_id),
+        'rules': 'chinese',
+        'komi': 7.0,
+        'boardXSize': 19, 'boardYSize': 19,
+        'maxVisits': max_visits,
+        'analyzeTurns': [len(moves)],
+        'includeOwnership': False, 'includePolicy': False,
+        'initialStones': [], 'initialPlayer': 'B',
+        'moves': moves,
+        'overrideSettings': {'reportAnalysisWinratesAs': 'BLACK'},
+    }
+
+    katago.stdin.write((json.dumps(query) + '\n').encode())
+    katago.stdin.flush()
+
+    line = katago.stdout.readline()
+    if not line:
+        return None
+
+    try:
+        resp = json.loads(line)
+    except json.JSONDecodeError:
+        return None
+
+    if 'error' in resp:
+        print("    Chinese query error: {}".format(resp['error'][:100]))
+        return None
+
+    ri = resp.get('rootInfo', {})
+    return ri.get('scoreLead', 0)
+
+
+def needs_chinese_score(con, game_id):
+    row = con.execute(
+        "SELECT chinese_score FROM games WHERE id = ?",
+        (game_id,),
+    ).fetchone()
+    return row and row[0] is None
+
+
 def main():
     global INTERRUPTED
 
@@ -166,6 +215,10 @@ def main():
             PRIMARY KEY (game_id, turn)
         )
     """)
+    try:
+        con.execute("ALTER TABLE games ADD COLUMN chinese_score REAL")
+    except sqlite3.OperationalError:
+        pass
     con.commit()
 
     pending = get_pending_games(con, max_games=args.max)
@@ -256,6 +309,22 @@ def main():
                 eta,
             ))
             sys.stdout.flush()
+
+        if INTERRUPTED:
+            break
+
+        if needs_chinese_score(con, game_id):
+            chinese = query_chinese_final(katago, game, args.visits)
+            if chinese is not None:
+                con.execute(
+                    "UPDATE games SET chinese_score = ? WHERE id = ?",
+                    (chinese, game_id),
+                )
+                con.commit()
+                print("  [G{} Chinese score: {:.1f}]".format(game_id, chinese))
+                sys.stdout.flush()
+            else:
+                print("  [G{} Chinese query failed]".format(game_id))
 
     con.close()
     try:

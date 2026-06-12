@@ -82,7 +82,8 @@ def serve_position(
             SELECT gp.game_id, gp.turn, g.filepath, g.komi, g.handicap, g.board_size, g.num_moves
             FROM game_positions gp
             JOIN games g ON gp.game_id = g.id
-            WHERE abs(gp.score_lead - g.score_points) <= 3
+            WHERE g.chinese_score IS NOT NULL
+              AND abs(gp.score_lead - g.chinese_score) <= 3
             ORDER BY RANDOM() LIMIT 1
         """).fetchone()
 
@@ -113,15 +114,15 @@ def submit_guess(req: GuessRequest, user=Depends(get_current_user)):
     con = get_db()
 
     game = con.execute(
-        "SELECT score_points, komi FROM games WHERE id = ?",
+        "SELECT chinese_score FROM games WHERE id = ?",
         (req.game_id,),
     ).fetchone()
 
-    if not game:
+    if not game or game["chinese_score"] is None:
         con.close()
         raise HTTPException(status_code=404, detail="Game not found")
 
-    actual_score = game["score_points"] + game["komi"] - 7.0
+    actual_score = game["chinese_score"]
     deviation = abs(req.guessed_score - actual_score)
 
     con.execute(

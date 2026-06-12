@@ -49,5 +49,9 @@ def init_user_tables():
         )
     """)
     con.execute("DROP TABLE IF EXISTS analysis")
+    try:
+        con.execute("ALTER TABLE games ADD COLUMN chinese_score REAL")
+    except sqlite3.OperationalError:
+        pass
     con.commit()
     con.close()
