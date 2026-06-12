@@ -18,6 +18,7 @@ class GoogleAuthRequest(BaseModel):
 class GuessRequest(BaseModel):
     game_id: int
     guessed_score: float
+    turn: int | None = None
 
 
 def get_current_user(authorization: str = Header(None)):
@@ -84,6 +85,7 @@ def serve_position(
             JOIN games g ON gp.game_id = g.id
             WHERE g.chinese_score IS NOT NULL
               AND abs(gp.score_lead - g.chinese_score) <= 3
+              AND abs(g.score_points - g.chinese_score) <= 3
             ORDER BY RANDOM() LIMIT 1
         """).fetchone()
 
@@ -113,6 +115,36 @@ def serve_position(
 def submit_guess(req: GuessRequest, user=Depends(get_current_user)):
     con = get_db()
 
+    if req.turn is not None:
+        existing = con.execute(
+            "SELECT guessed_score, actual_score, deviation FROM guesses WHERE user_id = ? AND game_id = ? AND turn = ?",
+            (user["user_id"], req.game_id, req.turn),
+        ).fetchone()
+    else:
+        existing = con.execute(
+            "SELECT guessed_score, actual_score, deviation FROM guesses WHERE user_id = ? AND game_id = ? AND turn IS NULL",
+            (user["user_id"], req.game_id),
+        ).fetchone()
+
+    if existing:
+        con.close()
+        dev = round(existing["deviation"], 1)
+        if dev <= 3:
+            rating = "Excellent!"
+        elif dev <= 10:
+            rating = "Close"
+        elif dev <= 25:
+            rating = "Not bad"
+        else:
+            rating = "Way off"
+        return {
+            "game_id": req.game_id,
+            "guessed_score": existing["guessed_score"],
+            "actual_score": existing["actual_score"],
+            "deviation": dev,
+            "rating": rating,
+        }
+
     game = con.execute(
         "SELECT chinese_score FROM games WHERE id = ?",
         (req.game_id,),
@@ -126,8 +158,8 @@ def submit_guess(req: GuessRequest, user=Depends(get_current_user)):
     deviation = abs(req.guessed_score - actual_score)
 
     con.execute(
-        "INSERT INTO guesses (user_id, game_id, guessed_score, actual_score, deviation) VALUES (?, ?, ?, ?, ?)",
-        (user["user_id"], req.game_id, req.guessed_score, actual_score, deviation),
+        "INSERT INTO guesses (user_id, game_id, turn, guessed_score, actual_score, deviation) VALUES (?, ?, ?, ?, ?, ?)",
+        (user["user_id"], req.game_id, req.turn, req.guessed_score, actual_score, deviation),
     )
     con.commit()
     con.close()
@@ -163,7 +195,7 @@ def user_stats(user=Depends(get_current_user)):
     """, (user["user_id"],)).fetchone()
 
     recent = con.execute("""
-        SELECT g.game_id, g.guessed_score, g.actual_score, g.deviation, g.created_at
+        SELECT g.game_id, g.turn, g.guessed_score, g.actual_score, g.deviation, g.created_at
         FROM guesses g
         WHERE g.user_id = ?
         ORDER BY g.created_at DESC LIMIT 50
