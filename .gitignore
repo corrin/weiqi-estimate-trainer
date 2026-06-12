@@ -14,6 +14,8 @@ frontend/dist/
 # Data (too large for git)
 games/
 games.db
+games.db-shm
+games.db-wal
 games.7z
 *.sgf
 count_eligible.txt
