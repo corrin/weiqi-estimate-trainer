@@ -31,7 +31,7 @@ export default function GoogleSignIn() {
   }
 
   return (
-    <div>
+    <div className="flex justify-center">
       <button
         onClick={handleGoogleSignIn}
         className="flex items-center gap-3 px-6 py-3 rounded-xl bg-white text-stone-800 font-medium
