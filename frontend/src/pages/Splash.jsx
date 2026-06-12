@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../hooks/useAuth'
 import ThemeToggle from '../components/ThemeToggle'
@@ -8,6 +8,14 @@ export default function Splash() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [showPrivacy, setShowPrivacy] = useState(false)
+  const [gameCount, setGameCount] = useState(null)
+
+  useEffect(() => {
+    fetch('/api/stats')
+      .then(r => r.json())
+      .then(d => setGameCount(d.game_count))
+      .catch(() => {})
+  }, [])
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -89,8 +97,10 @@ export default function Splash() {
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl w-full mt-8">
           <div className="bg-kaya-surface border border-kaya-border rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-kaya-gold font-serif">Real games</div>
-            <div className="text-xs text-kaya-muted mt-1">Authentic positions</div>
+            <div className="text-2xl font-bold text-kaya-gold font-serif">
+              {gameCount !== null ? gameCount.toLocaleString() : '...'}
+            </div>
+            <div className="text-xs text-kaya-muted mt-1">Real games</div>
           </div>
           <div className="bg-kaya-surface border border-kaya-border rounded-xl p-4 text-center">
             <div className="text-2xl font-bold text-kaya-gold font-serif">Instant</div>
@@ -98,7 +108,17 @@ export default function Splash() {
           </div>
           <div className="bg-kaya-surface border border-kaya-border rounded-xl p-4 text-center">
             <div className="text-2xl font-bold text-kaya-gold font-serif">Free</div>
-            <div className="text-xs text-kaya-muted mt-1">&amp; open source</div>
+            <div className="text-xs text-kaya-muted mt-1">
+              &amp;{' '}
+              <a
+                href="https://github.com/corrin/weiqi-estimate-trainer"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="underline hover:text-kaya-gold transition-colors"
+              >
+                open source
+              </a>
+            </div>
           </div>
         </div>
       </main>

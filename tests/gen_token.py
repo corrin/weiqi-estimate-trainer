@@ -1,10 +1,10 @@
 import sys
 sys.path.insert(0, "C:/Users/User/source/weiqi_estimator/backend")
-from database import get_db, init_user_tables
+from database import get_app_db, init_app_db
 from auth import create_session_token
 
-init_user_tables()
-con = get_db()
+init_app_db()
+con = get_app_db()
 user = con.execute("SELECT id, email FROM users LIMIT 1").fetchone()
 con.close()
 

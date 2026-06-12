@@ -1,23 +1,6 @@
-import re
 import os
 
-SGF_COLS = 'abcdefghijklmnopqrs'
-GTP_COLS = 'ABCDEFGHJKLMNOPQRST'
-
-
-def sgf_to_gtp(s):
-    if s in ('', 'tt'):
-        return 'pass'
-    col = SGF_COLS.index(s[0])
-    row = 19 - SGF_COLS.index(s[1])
-    return '{}{}'.format(GTP_COLS[col], row)
-
-
-def parse_moves(sgf_text):
-    moves = []
-    for m in re.finditer(r';(B|W)\[([a-z]{2}|tt|)\]', sgf_text):
-        moves.append((m.group(1), sgf_to_gtp(m.group(2))))
-    return moves
+from .sgf import GTP_COLS, parse_moves
 
 
 def gtp_to_index(gtp_pos):
@@ -110,7 +93,7 @@ def grid_to_jgo(row, col, board_size):
     return '{}{}'.format(col_letter, row_num)
 
 
-def get_position(game_id, filepath, turn_analyzed, komi):
+def get_position(filepath, turn_analyzed, komi):
     safe_path = filepath.replace('\\', os.sep)
     sgf_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'games', safe_path)
     try:

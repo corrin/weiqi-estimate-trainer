@@ -1,9 +1,18 @@
-"""Phase 2: Batch-analyze every qualifying turn of every game for predictive positions.
-Resumable. One KataGo query per batch of 50 turns.
-
-Usage: python phase2_analyze.py [--max GAMES] [--visits V]
 """
-import sqlite3, subprocess, json, time, re, os, sys, signal, argparse
+Phase 4 — Analyze: Per-turn KataGo analysis for verified games.
+
+For each verified game:
+  - Analyze turns in [MIN_TURN .. num_moves - MIN_FROM_END] via batch queries
+  - Store score_lead in game_analysis
+  - Set close_score=1 where abs(score_lead - chinese_score) <= 1.5
+
+Resumable — skips turns already present in game_analysis.
+
+Usage: python phase4_analyze.py [--max GAMES] [--visits V]
+"""
+import sqlite3, subprocess, json, time, os, sys, signal, argparse
+from backend.migrations import apply_games_db
+from backend.sgf import parse_moves
 
 DB = "games.db"
 ROOT = "games"
@@ -14,28 +23,9 @@ CONFIG = r"C:\Users\User\Documents\KaTrain\_internal\katrain\KataGo\analysis_con
 BATCH_SIZE = 50
 MIN_TURN = 76
 MIN_FROM_END = 50
-
-SGF_COLS = 'abcdefghijklmnopqrs'
-GTP_COLS = 'ABCDEFGHJKLMNOPQRST'
-S2G_COL = {SGF_COLS[i]: GTP_COLS[i] for i in range(19)}
-S2G_ROW = {SGF_COLS[i]: 19 - i for i in range(19)}
+CLOSE_THRESHOLD = 1.5
 
 INTERRUPTED = False
-
-
-def sgf_to_gtp(s):
-    if s in ('', 'tt'):
-        return 'pass'
-    return '{}{}'.format(S2G_COL[s[0]], S2G_ROW[s[1]])
-
-
-def parse_moves(filepath):
-    with open(filepath, 'rb') as f:
-        text = f.read().decode('utf-8', errors='replace')
-    moves = []
-    for m in re.finditer(r';(B|W)\[([a-z]{2}|tt|)\]', text):
-        moves.append([m.group(1), sgf_to_gtp(m.group(2))])
-    return moves
 
 
 def start_katago():
@@ -45,31 +35,29 @@ def start_katago():
     )
 
 
-def get_pending_games(con, max_games=None):
+def get_verified_games(con, max_games=None):
     sql = """
-        SELECT g.id, g.filepath, g.score_points, g.komi, g.num_moves
+        SELECT g.filepath, g.score_points, g.komi, g.num_moves, g.chinese_score
         FROM games g
-        WHERE g.result_type = 'score'
-          AND g.board_size = 19
-          AND g.num_moves >= ?
-        ORDER BY g.id
+        WHERE g.verified = 1
+        ORDER BY g.filepath
     """
-    params = [MIN_TURN + MIN_FROM_END]
+    params = []
     if max_games is not None:
         sql += " LIMIT ?"
         params.append(int(max_games))
     return con.execute(sql, params).fetchall()
 
 
-def get_pending_turns(con, game_id, num_moves):
+def get_pending_turns(con, filepath, num_moves):
     max_turn = num_moves - MIN_FROM_END
     all_turns = list(range(MIN_TURN, max_turn + 1))
     if not all_turns:
         return []
 
     existing = con.execute(
-        "SELECT turn FROM game_positions WHERE game_id = ?",
-        (game_id,),
+        "SELECT turn FROM game_analysis WHERE filepath = ?",
+        (filepath,),
     ).fetchall()
     existing_set = {e[0] for e in existing}
 
@@ -77,10 +65,12 @@ def get_pending_turns(con, game_id, num_moves):
 
 
 def analyze_batch(katago, game, batch_turns, max_visits):
-    game_id, rel_path, score_points, komi, num_moves = game
+    rel_path, score_points, komi, num_moves, chinese_score = game
     filepath = os.path.join(ROOT, rel_path)
 
-    moves = parse_moves(filepath)
+    with open(filepath, 'rb') as f:
+        text = f.read().decode('utf-8', errors='replace')
+    moves = parse_moves(text)
     if not moves:
         return None
 
@@ -94,7 +84,7 @@ def analyze_batch(katago, game, batch_turns, max_visits):
     moves_to_send = moves[:max_turn]
 
     query = {
-        'id': str(game_id),
+        'id': str(rel_path),
         'rules': 'japanese',
         'komi': komi,
         'boardXSize': 19, 'boardYSize': 19,
@@ -130,68 +120,16 @@ def analyze_batch(katago, game, batch_turns, max_visits):
         visits = ri.get('visits', 0)
 
         if turn is not None:
+            close = 1 if chinese_score is not None and abs(score_lead - chinese_score) <= CLOSE_THRESHOLD else 0
             results.append({
-                'game_id': game_id,
+                'filepath': rel_path,
                 'turn': turn,
                 'score_lead': score_lead,
                 'visits': visits,
+                'close_score': close,
             })
 
     return results
-
-
-def query_chinese_final(katago, game, max_visits):
-    game_id, rel_path, score_points, komi, num_moves = game
-    filepath = os.path.join(ROOT, rel_path)
-
-    moves = parse_moves(filepath)
-    if not moves:
-        return None
-
-    query = {
-        'id': 'c{}'.format(game_id),
-        'rules': 'chinese',
-        'komi': 7.0,
-        'boardXSize': 19, 'boardYSize': 19,
-        'maxVisits': max_visits,
-        'analyzeTurns': [len(moves)],
-        'includeOwnership': True, 'includePolicy': False,
-        'initialStones': [], 'initialPlayer': 'B',
-        'moves': moves,
-        'overrideSettings': {'reportAnalysisWinratesAs': 'BLACK'},
-    }
-
-    katago.stdin.write((json.dumps(query) + '\n').encode())
-    katago.stdin.flush()
-
-    line = katago.stdout.readline()
-    if not line:
-        return None
-
-    try:
-        resp = json.loads(line)
-    except json.JSONDecodeError:
-        return None
-
-    if 'error' in resp:
-        print("    Chinese query error: {}".format(resp['error'][:100]))
-        return None
-
-    ownership = resp.get('ownership')
-    if not ownership or len(ownership) != 361:
-        return None
-
-    area_diff = sum(ownership)
-    chinese_score = area_diff - 7.0
-    return round(chinese_score / 2) * 2
-
-
-def needs_chinese_score(con, game_id):
-    row = con.execute(
-        "SELECT chinese_score FROM games WHERE id = ?",
-        (game_id,),
-    ).fetchone()
-    return row and row[0] is None
 
 
 def main():
@@ -211,30 +149,16 @@ def main():
 
     con = sqlite3.connect(DB)
     con.execute("PRAGMA journal_mode=WAL")
-    con.execute("""
-        CREATE TABLE IF NOT EXISTS game_positions (
-            game_id INTEGER NOT NULL REFERENCES games(id),
-            turn INTEGER NOT NULL,
-            score_lead REAL,
-            visits INTEGER,
-            PRIMARY KEY (game_id, turn)
-        )
-    """)
-    try:
-        con.execute("ALTER TABLE games ADD COLUMN chinese_score REAL")
-    except sqlite3.OperationalError:
-        pass
-    con.commit()
+    apply_games_db(DB)
 
-    pending = get_pending_games(con, max_games=args.max)
-    print("Games to process: {}".format(len(pending)))
+    games = get_verified_games(con, max_games=args.max)
+    print("Verified games to process: {}".format(len(games)))
     print("Visits per turn: {}".format(args.visits))
     print("Batch size: {}".format(BATCH_SIZE))
 
-    # Count total pending turns
     total_turns = 0
-    for game in pending:
-        turns = get_pending_turns(con, game[0], game[4])
+    for game in games:
+        turns = get_pending_turns(con, game[0], game[3])
         total_turns += len(turns)
     print("Pending turns total: {}".format(total_turns))
     print("Estimated batches: ~{}".format(-(-total_turns // BATCH_SIZE)))
@@ -252,12 +176,12 @@ def main():
     errors = 0
     session_start = time.time()
 
-    for game in pending:
+    for game in games:
         if INTERRUPTED:
             break
 
-        game_id, rel_path, score_points, komi, num_moves = game
-        turns = get_pending_turns(con, game_id, num_moves)
+        rel_path, score_points, komi, num_moves, chinese_score = game
+        turns = get_pending_turns(con, rel_path, num_moves)
 
         game_turns_done = 0
         if turns:
@@ -288,8 +212,8 @@ def main():
                 batch_turns_done = 0
                 for r in result:
                     con.execute(
-                        "INSERT OR IGNORE INTO game_positions (game_id, turn, score_lead, visits) VALUES (?, ?, ?, ?)",
-                        (r['game_id'], r['turn'], r['score_lead'], r['visits']),
+                        "INSERT OR IGNORE INTO game_analysis (filepath, turn, score_lead, visits, close_score) VALUES (?, ?, ?, ?, ?)",
+                        (r['filepath'], r['turn'], r['score_lead'], r['visits'], r['close_score']),
                     )
                     batch_turns_done += 1
                 con.commit()
@@ -303,7 +227,7 @@ def main():
                 remaining = total_turns - turns_done
                 eta = remaining / rate if rate > 0 else 0
                 print("  [G{} batch {}/{}]  batch_turns={}  total_done={}/{}  {:.0f} t/h  ETA {:.1f}h".format(
-                    game_id,
+                    rel_path,
                     batch_start // BATCH_SIZE + 1,
                     -(-len(turns) // BATCH_SIZE),
                     batch_turns_done,
@@ -317,19 +241,6 @@ def main():
         if INTERRUPTED:
             break
 
-        if needs_chinese_score(con, game_id):
-            chinese = query_chinese_final(katago, game, args.visits)
-            if chinese is not None:
-                con.execute(
-                    "UPDATE games SET chinese_score = ? WHERE id = ?",
-                    (chinese, game_id),
-                )
-                con.commit()
-                print("  [G{} Chinese score: {}]".format(game_id, chinese))
-                sys.stdout.flush()
-            else:
-                print("  [G{} Chinese query failed]".format(game_id))
-
     con.close()
     try:
         katago.terminate()
@@ -337,7 +248,7 @@ def main():
         pass
 
     elapsed = time.time() - session_start
-    print("\n=== Complete ===")
+    print("\n=== Phase 4 Complete ===")
     print("Turns analyzed: {}".format(turns_done))
     print("Batches: {}".format(batches_done))
     print("Errors: {}".format(errors))

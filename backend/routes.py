@@ -2,13 +2,13 @@ from fastapi import APIRouter, HTTPException, Depends, Header, Query
 from pydantic import BaseModel
 import random
 
-from .database import get_db, init_user_tables
+from .database import get_games_db, get_app_db, init_app_db
 from .auth import verify_google_token, create_session_token, decode_session_token
 from .board import get_position
 
 router = APIRouter()
 
-init_user_tables()
+init_app_db()
 
 
 class GoogleAuthRequest(BaseModel):
@@ -16,7 +16,7 @@ class GoogleAuthRequest(BaseModel):
 
 
 class GuessRequest(BaseModel):
-    game_id: int
+    filepath: str
     guessed_score: float
     turn: int | None = None
 
@@ -44,7 +44,7 @@ def google_auth(req: GoogleAuthRequest):
 
     name = info.get("name", email)
 
-    con = get_db()
+    con = get_app_db()
     user = con.execute("SELECT id, is_admin FROM users WHERE email = ?", (email,)).fetchone()
     if user:
         user_id = user["id"]
@@ -66,26 +66,24 @@ def google_auth(req: GoogleAuthRequest):
 @router.get("/position")
 def serve_position(
     user=Depends(get_current_user),
-    game_id: int | None = Query(None),
+    filepath: str | None = Query(None),
     turn: int | None = Query(None),
 ):
-    con = get_db()
+    con = get_games_db()
 
-    if game_id is not None and turn is not None:
+    if filepath is not None and turn is not None:
         row = con.execute("""
-            SELECT gp.game_id, gp.turn, g.filepath, g.komi, g.handicap, g.board_size, g.num_moves
-            FROM game_positions gp
-            JOIN games g ON gp.game_id = g.id
-            WHERE gp.game_id = ? AND gp.turn = ?
-        """, (game_id, turn)).fetchone()
+            SELECT ga.filepath, ga.turn, g.komi, g.handicap, g.board_size, g.num_moves
+            FROM game_analysis ga
+            JOIN games g ON ga.filepath = g.filepath
+            WHERE ga.filepath = ? AND ga.turn = ?
+        """, (filepath, turn)).fetchone()
     else:
         row = con.execute("""
-            SELECT gp.game_id, gp.turn, g.filepath, g.komi, g.handicap, g.board_size, g.num_moves
-            FROM game_positions gp
-            JOIN games g ON gp.game_id = g.id
-            WHERE g.chinese_score IS NOT NULL
-              AND abs(gp.score_lead - g.chinese_score) <= 3
-              AND abs(g.score_points - g.chinese_score) <= 3
+            SELECT ga.filepath, ga.turn, g.komi, g.handicap, g.board_size, g.num_moves
+            FROM game_analysis ga
+            JOIN games g ON ga.filepath = g.filepath
+            WHERE g.verified = 1 AND ga.close_score = 1
             ORDER BY RANDOM() LIMIT 1
         """).fetchone()
 
@@ -94,14 +92,14 @@ def serve_position(
     if not row:
         raise HTTPException(status_code=404, detail="No positions available")
 
-    pos = get_position(row["game_id"], row["filepath"], row["turn"], row["komi"])
+    pos = get_position(row["filepath"], row["turn"], row["komi"])
     if not pos:
         raise HTTPException(status_code=500, detail="Failed to parse position")
 
     return {
-        "game_id": row["game_id"],
+        "filepath": row["filepath"],
         "turn": row["turn"],
-        "ref": "G{}T{}".format(row["game_id"], row["turn"]),
+        "ref": "{}:{}".format(row["filepath"], row["turn"]),
         "total_moves": row["num_moves"],
         "komi": row["komi"],
         "board_size": row["board_size"],
@@ -113,21 +111,21 @@ def serve_position(
 
 @router.post("/guess")
 def submit_guess(req: GuessRequest, user=Depends(get_current_user)):
-    con = get_db()
+    con_app = get_app_db()
 
     if req.turn is not None:
-        existing = con.execute(
-            "SELECT guessed_score, actual_score, deviation FROM guesses WHERE user_id = ? AND game_id = ? AND turn = ?",
-            (user["user_id"], req.game_id, req.turn),
+        existing = con_app.execute(
+            "SELECT guessed_score, actual_score, deviation FROM guesses WHERE user_id = ? AND filepath = ? AND turn = ?",
+            (user["user_id"], req.filepath, req.turn),
         ).fetchone()
     else:
-        existing = con.execute(
-            "SELECT guessed_score, actual_score, deviation FROM guesses WHERE user_id = ? AND game_id = ? AND turn IS NULL",
-            (user["user_id"], req.game_id),
+        existing = con_app.execute(
+            "SELECT guessed_score, actual_score, deviation FROM guesses WHERE user_id = ? AND filepath = ? AND turn IS NULL",
+            (user["user_id"], req.filepath),
         ).fetchone()
 
     if existing:
-        con.close()
+        con_app.close()
         dev = round(existing["deviation"], 1)
         if dev <= 3:
             rating = "Excellent!"
@@ -138,31 +136,33 @@ def submit_guess(req: GuessRequest, user=Depends(get_current_user)):
         else:
             rating = "Way off"
         return {
-            "game_id": req.game_id,
+            "filepath": req.filepath,
             "guessed_score": existing["guessed_score"],
             "actual_score": existing["actual_score"],
             "deviation": dev,
             "rating": rating,
         }
 
-    game = con.execute(
-        "SELECT chinese_score FROM games WHERE id = ?",
-        (req.game_id,),
+    con_games = get_games_db()
+    game = con_games.execute(
+        "SELECT chinese_score FROM games WHERE filepath = ?",
+        (req.filepath,),
     ).fetchone()
+    con_games.close()
 
     if not game or game["chinese_score"] is None:
-        con.close()
+        con_app.close()
         raise HTTPException(status_code=404, detail="Game not found")
 
     actual_score = game["chinese_score"]
     deviation = abs(req.guessed_score - actual_score)
 
-    con.execute(
-        "INSERT INTO guesses (user_id, game_id, turn, guessed_score, actual_score, deviation) VALUES (?, ?, ?, ?, ?, ?)",
-        (user["user_id"], req.game_id, req.turn, req.guessed_score, actual_score, deviation),
+    con_app.execute(
+        "INSERT INTO guesses (user_id, filepath, turn, guessed_score, actual_score, deviation) VALUES (?, ?, ?, ?, ?, ?)",
+        (user["user_id"], req.filepath, req.turn, req.guessed_score, actual_score, deviation),
     )
-    con.commit()
-    con.close()
+    con_app.commit()
+    con_app.close()
 
     if deviation <= 3:
         rating = "Excellent!"
@@ -174,7 +174,7 @@ def submit_guess(req: GuessRequest, user=Depends(get_current_user)):
         rating = "Way off"
 
     return {
-        "game_id": req.game_id,
+        "filepath": req.filepath,
         "guessed_score": req.guessed_score,
         "actual_score": actual_score,
         "deviation": round(deviation, 1),
@@ -184,7 +184,7 @@ def submit_guess(req: GuessRequest, user=Depends(get_current_user)):
 
 @router.get("/me/stats")
 def user_stats(user=Depends(get_current_user)):
-    con = get_db()
+    con = get_app_db()
 
     row = con.execute("""
         SELECT
@@ -195,7 +195,7 @@ def user_stats(user=Depends(get_current_user)):
     """, (user["user_id"],)).fetchone()
 
     recent = con.execute("""
-        SELECT g.game_id, g.turn, g.guessed_score, g.actual_score, g.deviation, g.created_at
+        SELECT g.filepath, g.turn, g.guessed_score, g.actual_score, g.deviation, g.created_at
         FROM guesses g
         WHERE g.user_id = ?
         ORDER BY g.created_at DESC LIMIT 50
@@ -211,9 +211,19 @@ def user_stats(user=Depends(get_current_user)):
     }
 
 
+@router.get("/stats")
+def public_stats():
+    con = get_games_db()
+    row = con.execute(
+        "SELECT COUNT(*) as count FROM games WHERE chinese_score IS NOT NULL"
+    ).fetchone()
+    con.close()
+    return {"game_count": row["count"]}
+
+
 @router.get("/leaderboard")
 def leaderboard(user=Depends(get_current_user)):
-    con = get_db()
+    con = get_app_db()
     admin_row = con.execute("SELECT is_admin FROM users WHERE id = ?", (user["user_id"],)).fetchone()
     if not admin_row or not admin_row["is_admin"]:
         con.close()

@@ -1,40 +1,25 @@
-"""Phase 1: Parse all SGF files, populate games table in SQLite."""
-import sqlite3, os, re, time, sys
+"""
+Phase 1 — Ingest: Parse all SGF files, populate the games table in games.db.
+
+Pipeline overview:
+  Phase 1  phase1_ingest.py   Parse SGFs → INSERT into games table
+  Phase 2  phase2_filter.py   Set eligible=1 on games meeting objective criteria
+  Phase 3  phase3_verify.py   KataGo Chinese final query; set verified=1 when
+                              abs(chinese_score - score_points) <= 1.5
+  Phase 4  phase4_analyze.py  Per-turn KataGo analysis for verified games;
+                              set close_score=1 where abs(score_lead - chinese_score) <= 1.5
+
+All phases are idempotent / resumable.
+"""
+import sqlite3, os, re, time, sys, hashlib
+from backend.migrations import apply_games_db
 
 DB = "games.db"
 ROOT = "games"
 
 def init_db(con):
     con.execute("PRAGMA journal_mode=WAL")
-    con.execute("""
-        CREATE TABLE IF NOT EXISTS games (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            filepath TEXT UNIQUE,
-            tournament TEXT,
-            player_b TEXT,
-            player_w TEXT,
-            result_raw TEXT,
-            result_type TEXT,
-            score_points REAL,
-            board_size INTEGER,
-            komi REAL,
-            handicap INTEGER,
-            num_moves INTEGER,
-            date TEXT
-        )
-    """)
-    con.execute("""
-        CREATE TABLE IF NOT EXISTS analysis (
-            game_id INTEGER PRIMARY KEY REFERENCES games(id),
-            turn_analyzed INTEGER,
-            score_lead REAL,
-            winrate REAL,
-            deviation REAL,
-            visits INTEGER,
-            time_taken REAL
-        )
-    """)
-    con.commit()
+    apply_games_db(DB)
 
 def parse_result(raw):
     if not raw:
@@ -56,7 +41,9 @@ def parse_result(raw):
 
 def parse_one(filepath):
     with open(filepath, 'rb') as f:
-        text = f.read().decode('utf-8', errors='replace')
+        raw = f.read()
+    text = raw.decode('utf-8', errors='replace')
+    sgf_hash = hashlib.sha256(raw).hexdigest()
 
     def hdr(tag):
         m = re.search(rf'{tag}\[([^\]]*)\]', text)
@@ -89,6 +76,7 @@ def parse_one(filepath):
         'handicap': ha,
         'num_moves': moves,
         'date': dt,
+        'sgf_hash': sgf_hash,
     }
 
 def main():
@@ -124,12 +112,12 @@ def main():
         try:
             con.execute("""
                 INSERT INTO games (filepath, tournament, player_b, player_w, result_raw,
-                    result_type, score_points, board_size, komi, handicap, num_moves, date)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    result_type, score_points, board_size, komi, handicap, num_moves, date, sgf_hash)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (info['filepath'], info['tournament'], info['player_b'], info['player_w'],
                   info['result_raw'], info['result_type'], info['score_points'],
                   info['board_size'], info['komi'], info['handicap'], info['num_moves'],
-                  info['date']))
+                  info['date'], info['sgf_hash']))
             inserted += 1
         except sqlite3.IntegrityError:
             skipped += 1
@@ -147,11 +135,6 @@ def main():
         print(f"  Total in DB: {row[0]}")
     for row in con2.execute("SELECT result_type, COUNT(*) FROM games GROUP BY result_type ORDER BY COUNT(*) DESC"):
         print(f"    {row[0]}: {row[1]}")
-    for row in con2.execute("""
-        SELECT COUNT(*) FROM games
-        WHERE result_type='score' AND board_size=19 AND num_moves >= 100
-    """):
-        print(f"  Eligible for analysis: {row[0]}")
     con2.close()
 
 if __name__ == '__main__':

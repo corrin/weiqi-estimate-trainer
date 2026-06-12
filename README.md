@@ -36,9 +36,11 @@ weiqi-estimate-trainer/
 │   └── src/
 │       ├── pages/       Splash, Play, Progress, Leaderboard
 │       └── components/  GoBoard, ScoreSlider, ResultOverlay
-├── phase1_parse.py      Parse SGF files → games.db
-├── phase2_analyze.py    Run KataGo analysis on eligible games
-└── games.db             (not in repo — see data pipeline below)
+├── phase1_ingest.py      Parse SGF files → games table
+├── phase2_filter.py      Flag eligible games (19×19, score, ≥126 moves)
+├── phase3_verify.py      KataGo Chinese final → verified flag
+├── phase4_analyze.py     Per-turn KataGo analysis → close_score flag
+└── games.db              (not in repo — built by pipeline)
 ```
 
 ## Setup
@@ -74,19 +76,26 @@ cd ..
 
 ### 3. Game data pipeline
 
-The app needs an SQLite database of analyzed Go games.
+The pipeline has four phases. Each is idempotent and can be resumed if interrupted.
 
 ```bash
-# Step 1: Place SGF files in games/
-# Step 2: Parse them into games.db
-python phase1_parse.py
+# Phase 1 — Ingest: parse all SGF files into games table
+python phase1_ingest.py
 
-# Step 3: Analyze with KataGo (requires KataGo binary + model)
-# Analyzes every qualifying turn (76..end-50), filtering for stable scores
-python phase2_analyze.py --max 1000
+# Phase 2 — Filter: mark games that meet objective criteria
+#   (19×19, score-based result, ≥126 moves)
+python phase2_filter.py
+
+# Phase 3 — Verify: KataGo Chinese final query for each eligible game
+#   Verified when abs(chinese_score - score_points) ≤ 1.5
+python phase3_verify.py --max 1000
+
+# Phase 4 — Analyze: per-turn KataGo for verified games (turns 76..end-50)
+#   close_score=1 when abs(score_lead - chinese_score) ≤ 1.5
+python phase4_analyze.py --max 1000
 ```
 
-The app works with any number of analyzed positions — more is better.
+Positions served to users come from `verified` games with `close_score=1` turns only.
 
 ### 4. Run
 

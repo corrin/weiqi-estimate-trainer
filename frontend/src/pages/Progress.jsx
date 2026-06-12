@@ -164,7 +164,7 @@ export default function Progress() {
                 )
                 if (hasTurn) {
                   return (
-                    <Link key={i} to={`/play?game=${guess.game_id}&turn=${guess.turn}`} className={classes}>
+                    <Link key={i} to={`/play?game=${encodeURIComponent(guess.filepath)}&turn=${guess.turn}`} className={classes}>
                       {content}
                     </Link>
                   )

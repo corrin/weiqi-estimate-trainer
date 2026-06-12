@@ -16,6 +16,9 @@ games/
 games.db
 games.db-shm
 games.db-wal
+app.db
+app.db-shm
+app.db-wal
 games.7z
 *.sgf
 count_eligible.txt
@@ -42,3 +45,4 @@ playwright-report/
 
 # Temp
 test_board.py
+adhoc/

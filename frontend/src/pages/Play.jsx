@@ -25,12 +25,12 @@ export default function Play() {
       const g = searchParams.get('game')
       const t = searchParams.get('turn')
       if (specific && g && t) {
-        url = `/position?game_id=${g}&turn=${t}`
+        url = `/position?filepath=${encodeURIComponent(g)}&turn=${t}`
       }
       const data = await api(url)
       setPosition(data)
       if (!g || !t) {
-        window.history.replaceState(null, '', `/play?game=${data.game_id}&turn=${data.turn}`)
+        window.history.replaceState(null, '', `/play?game=${encodeURIComponent(data.filepath)}&turn=${data.turn}`)
       }
     } catch (e) {
       console.error('Failed to load position:', e)
@@ -49,7 +49,7 @@ export default function Play() {
       const data = await api('/guess', {
         method: 'POST',
         body: JSON.stringify({
-          game_id: position.game_id,
+          filepath: position.filepath,
           turn: position.turn,
           guessed_score: guessedScore,
         }),
@@ -62,7 +62,7 @@ export default function Play() {
   }
 
   const handleCopyRef = () => {
-    const url = `${window.location.origin}/play?game=${position.game_id}&turn=${position.turn}`
+    const url = `${window.location.origin}/play?game=${encodeURIComponent(position.filepath)}&turn=${position.turn}`
     navigator.clipboard.writeText(url)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
@@ -113,7 +113,7 @@ export default function Play() {
                 className="font-mono hover:text-kaya-gold transition-colors"
                 title="Copy link to this position"
               >
-                #{position.game_id}:{position.turn}
+                #{position.filepath}:{position.turn}
                 {copied && <span className="ml-1 text-kaya-success">copied</span>}
               </button>
               <span>{position.next_to_play} to play</span>
