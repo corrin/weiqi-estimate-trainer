@@ -154,7 +154,7 @@ def user_stats(user=Depends(get_current_user)):
         SELECT g.game_id, g.guessed_score, g.actual_score, g.deviation, g.created_at
         FROM guesses g
         WHERE g.user_id = ?
-        ORDER BY g.created_at DESC LIMIT 20
+        ORDER BY g.created_at DESC LIMIT 50
     """, (user["user_id"],)).fetchall()
 
     con.close()

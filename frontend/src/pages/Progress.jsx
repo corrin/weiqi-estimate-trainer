@@ -55,6 +55,52 @@ export default function Progress() {
     return { label: 'Way off', color: 'text-kaya-error' }
   }
 
+  const renderChart = (recent) => {
+    if (!recent || recent.length < 3) return null
+
+    const data = [...recent].reverse()
+    const W = 280, H = 120, PAD = { top: 16, right: 12, bottom: 20, left: 28 }
+    const pw = W - PAD.left - PAD.right
+    const ph = H - PAD.top - PAD.bottom
+
+    const maxDev = Math.max(...data.map(d => d.deviation), stats.avg_deviation * 2)
+    const y = (d) => PAD.top + ph - (d / maxDev) * ph
+    const x = (i) => PAD.left + (i / (data.length - 1)) * pw
+
+    const rolling = []
+    for (let i = 0; i < data.length; i++) {
+      const start = Math.max(0, i - 4)
+      const slice = data.slice(start, i + 1)
+      const avg = slice.reduce((s, d) => s + d.deviation, 0) / slice.length
+      rolling.push(avg)
+    }
+
+    const avgY = y(stats.avg_deviation)
+
+    return (
+      <div className="bg-kaya-surface border border-kaya-border rounded-xl p-4 shadow-sm space-y-2">
+        <h3 className="text-sm font-semibold text-kaya-text font-serif">Trend</h3>
+        <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
+          <line x1={PAD.left} y1={PAD.top} x2={PAD.left} y2={H - PAD.bottom} stroke="rgb(var(--kaya-border))" strokeWidth="1" />
+          <line x1={PAD.left} y1={H - PAD.bottom} x2={W - PAD.right} y2={H - PAD.bottom} stroke="rgb(var(--kaya-border))" strokeWidth="1" />
+          <line x1={PAD.left} y1={avgY} x2={W - PAD.right} y2={avgY} stroke="rgb(var(--kaya-gold))" strokeWidth="1" strokeDasharray="4,3" opacity="0.5" />
+          <text x="4" y={avgY + 4} className="text-[8px]" fill="rgb(var(--kaya-gold))" opacity="0.7">{stats.avg_deviation}</text>
+          {data.map((d, i) => (
+            <circle key={i} cx={x(i)} cy={y(d.deviation)} r="2.5" fill="rgb(var(--kaya-muted))" opacity="0.4" />
+          ))}
+          <polyline
+            points={rolling.map((v, i) => `${x(i)},${y(v)}`).join(' ')}
+            fill="none" stroke="rgb(var(--kaya-gold))" strokeWidth="2" strokeLinejoin="round"
+          />
+        </svg>
+        <div className="flex justify-between text-[10px] text-kaya-muted">
+          <span>{data.length} guesses ago</span>
+          <span>now</span>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen flex flex-col">
       <header className="flex items-center justify-between p-4 border-b border-kaya-border">
@@ -82,6 +128,8 @@ export default function Progress() {
             <div className="text-xs text-kaya-muted mt-1">Best</div>
           </div>
         </div>
+
+        {renderChart(stats.recent)}
 
         <div>
           <h3 className="text-sm font-semibold text-kaya-text mb-3 font-serif">Recent guesses</h3>
