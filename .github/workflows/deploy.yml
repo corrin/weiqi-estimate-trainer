@@ -1,21 +1,137 @@
 name: Deploy
+
 on:
   push:
     branches: [master]
   workflow_dispatch:
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    env:
+      PRODUCTION_URL: https://weiqi.docketworks.site
     steps:
-      - name: Deploy to docketworks.site
-        uses: appleboy/ssh-action@v1
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
         with:
-          host: ${{ secrets.UAT_HOST }}
-          username: ${{ secrets.UAT_USER }}
-          key: ${{ secrets.UAT_SSH_KEY }}
-          script: |
-            sudo -u weiqi git -C /opt/weiqi/app fetch origin
-            sudo -u weiqi git -C /opt/weiqi/app reset --hard origin/master
-            sudo -u weiqi /opt/weiqi/venv/bin/pip install -r /opt/weiqi/app/backend/requirements.txt
-            sudo -u weiqi bash -c 'cd /opt/weiqi/app/frontend && npm ci && npm run build'
-            sudo systemctl restart weiqi
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend artifact
+        run: |
+          set -euo pipefail
+          cd frontend
+          npm ci
+          npm run build
+          node - <<'NODE'
+          const fs = require('node:fs')
+
+          const commit = process.env.GITHUB_SHA
+          const build = {
+            commit,
+            short_commit: commit.slice(0, 7),
+            built_at: new Date().toISOString(),
+            run_id: process.env.GITHUB_RUN_ID,
+          }
+
+          fs.writeFileSync('dist/_build.json', `${JSON.stringify(build, null, 2)}\n`)
+          NODE
+
+      - name: Package frontend artifact
+        run: |
+          set -euo pipefail
+          tar -C frontend/dist -czf weiqi-dist.tgz .
+
+      - name: Configure SSH
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "${{ secrets.UAT_SSH_KEY }}" > ~/.ssh/weiqi_deploy
+          chmod 600 ~/.ssh/weiqi_deploy
+          ssh-keyscan -H "${{ secrets.UAT_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Upload frontend artifact
+        run: |
+          set -euo pipefail
+          scp -i ~/.ssh/weiqi_deploy weiqi-dist.tgz \
+            "${{ secrets.UAT_USER }}@${{ secrets.UAT_HOST }}:/tmp/weiqi-dist-${{ github.sha }}.tgz"
+
+      - name: Deploy on server
+        run: |
+          set -euo pipefail
+          ssh -i ~/.ssh/weiqi_deploy "${{ secrets.UAT_USER }}@${{ secrets.UAT_HOST }}" \
+            "SHA='${{ github.sha }}' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          APP=/opt/weiqi/app
+          ARCHIVE="/tmp/weiqi-dist-${SHA}.tgz"
+          STAGE="/tmp/weiqi-dist-${SHA}"
+          NEW_DIST="${APP}/frontend/dist.new"
+          CHECK_FILE="/tmp/weiqi-build-${SHA}.json"
+
+          sudo rm -rf "$STAGE" "$NEW_DIST"
+          sudo mkdir -p "$STAGE" "$NEW_DIST"
+          sudo tar -xzf "$ARCHIVE" -C "$STAGE"
+          sudo cp -a "${STAGE}/." "$NEW_DIST/"
+          sudo chown -R weiqi:weiqi "$NEW_DIST"
+
+          sudo -u weiqi /opt/weiqi/venv/bin/python - "$NEW_DIST/_build.json" "$SHA" <<'PY'
+          import json
+          import sys
+
+          path, expected = sys.argv[1], sys.argv[2]
+          with open(path, encoding="utf-8") as fh:
+              build = json.load(fh)
+          actual = build.get("commit")
+          if actual != expected:
+              raise SystemExit(f"artifact commit mismatch: {actual!r} != {expected!r}")
+          PY
+
+          sudo -u weiqi git -C "$APP" fetch origin master
+          sudo -u weiqi git -C "$APP" reset --hard "$SHA"
+          test "$(sudo -u weiqi git -C "$APP" rev-parse HEAD)" = "$SHA"
+
+          sudo -u weiqi /opt/weiqi/venv/bin/pip install -r "${APP}/backend/requirements.txt"
+
+          sudo rm -rf "${APP}/frontend/dist"
+          sudo mv "$NEW_DIST" "${APP}/frontend/dist"
+          sudo chown -R weiqi:weiqi "${APP}/frontend/dist"
+          sudo systemctl restart weiqi
+
+          test "$(systemctl is-active weiqi)" = "active"
+
+          sudo rm -rf "$STAGE" "$ARCHIVE" "$CHECK_FILE"
+          REMOTE
+
+      - name: Verify public deployment
+        run: |
+          set -euo pipefail
+          sleep 2
+          curl -fsS "$PRODUCTION_URL/_build.json" -o build.json
+          node - <<'NODE'
+          const fs = require('node:fs')
+
+          const build = JSON.parse(fs.readFileSync('build.json', 'utf8'))
+          if (build.commit !== process.env.GITHUB_SHA) {
+            throw new Error(`public commit mismatch: ${build.commit} != ${process.env.GITHUB_SHA}`)
+          }
+          NODE
+
+          curl -fsS "$PRODUCTION_URL/" -o index.html
+          node - <<'NODE'
+          const fs = require('node:fs')
+
+          const html = fs.readFileSync('index.html', 'utf8')
+          const match = html.match(/src="(\/assets\/index-[^"]+\.js)"/)
+          if (!match) {
+            throw new Error('Could not find frontend JS asset in index.html')
+          }
+          fs.writeFileSync('asset-path.txt', match[1])
+          NODE
+
+          curl -fsS "$PRODUCTION_URL$(cat asset-path.txt)" -o app.js
+          test -s app.js

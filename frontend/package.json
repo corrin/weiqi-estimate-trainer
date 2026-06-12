@@ -16,7 +16,6 @@
     "vite": "^6.4.3"
   },
   "dependencies": {
-    "@rollup/rollup-win32-x64-msvc": "^4.61.1",
     "autoprefixer": "^10.4.20",
     "jgoboard": "^5.0.4",
     "postcss": "^8.4.49",
