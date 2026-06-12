@@ -22,13 +22,16 @@ export default function Play() {
     setError(null)
     try {
       let url = '/position'
-      if (specific) {
-        const g = searchParams.get('game')
-        const t = searchParams.get('turn')
-        if (g && t) url = `/position?game_id=${g}&turn=${t}`
+      const g = searchParams.get('game')
+      const t = searchParams.get('turn')
+      if (specific && g && t) {
+        url = `/position?game_id=${g}&turn=${t}`
       }
       const data = await api(url)
       setPosition(data)
+      if (!g || !t) {
+        window.history.replaceState(null, '', `/play?game=${data.game_id}&turn=${data.turn}`)
+      }
     } catch (e) {
       setError(e.message || 'Failed to load position')
     }

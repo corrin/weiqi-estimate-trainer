@@ -8,7 +8,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: process.env.CI ? 1 : undefined,
-  reporter: 'html',
+  reporter: process.env.CI ? 'html' : 'line',
 
   use: {
     baseURL: BASE_URL,
@@ -20,11 +20,6 @@ export default defineConfig({
     {
       name: 'chromium',
       use: { ...devices['Desktop Chrome'] },
-    },
-    {
-      name: 'screenshots',
-      use: { ...devices['Desktop Chrome'] },
-      testMatch: '**/*.visual.spec.js',
     },
     {
       name: 'mobile',

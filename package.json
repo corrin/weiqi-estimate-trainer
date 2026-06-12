@@ -4,8 +4,9 @@
   "license": "GPL-3.0",
   "scripts": {
     "test": "playwright test",
-    "test:ui": "playwright test --ui",
-    "test:screenshot": "playwright test --project=screenshots"
+    "test:smoke": "playwright test --grep @smoke",
+    "test:full": "playwright test --grep-invert @smoke",
+    "test:ui": "playwright test --ui"
   },
   "devDependencies": {
     "@playwright/test": "^1.52.0"

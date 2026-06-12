@@ -4,7 +4,7 @@ const TEST_TOKEN = process.env.TEST_TOKEN;
 
 // --- Splash page ---
 
-test('splash renders headline, sign-in, and stat cards', async ({ page }) => {
+test('splash renders headline, sign-in, and stat cards @smoke', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('h1')).toContainText('score sense');
   await expect(page.getByRole('button', { name: 'Sign in with Google' })).toBeVisible();
@@ -31,7 +31,7 @@ test('/play redirects unauthenticated users to splash', async ({ page }) => {
   await expect(page.locator('h1')).toContainText('score sense');
 });
 
-test('/api/position requires auth', async ({ request }) => {
+test('/api/position requires auth @smoke', async ({ request }) => {
   const res = await request.get('/api/position');
   expect(res.status()).toBe(401);
 });
@@ -61,7 +61,7 @@ test('leaderboard loads for admin', async ({ page }) => {
 
 // --- Play page ---
 
-test('play page renders board and score slider', async ({ page }) => {
+test('play page renders board and score slider @smoke', async ({ page }) => {
   test.skip(!TEST_TOKEN, 'TEST_TOKEN env var not set');
 
   await page.goto('/');
@@ -95,7 +95,7 @@ test('play page on mobile', async ({ page }) => {
   await page.screenshot({ path: 'tests/screenshots/play-mobile.png', fullPage: true });
 });
 
-test('guess submission works end-to-end', async ({ request }) => {
+test('guess submission works end-to-end @smoke', async ({ request }) => {
   test.skip(!TEST_TOKEN, 'TEST_TOKEN env var not set');
 
   const posRes = await request.get('/api/position', {
