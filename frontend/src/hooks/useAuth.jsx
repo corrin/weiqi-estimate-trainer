@@ -18,7 +18,8 @@ export function AuthProvider({ children }) {
             is_admin: localStorage.getItem('is_admin') === 'true',
           })
         })
-        .catch(() => {
+        .catch(e => {
+          console.error('Auth validation failed:', e)
           localStorage.removeItem('token')
           localStorage.removeItem('email')
           localStorage.removeItem('name')

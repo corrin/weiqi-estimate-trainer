@@ -111,9 +111,13 @@ def grid_to_jgo(row, col, board_size):
 
 
 def get_position(game_id, filepath, turn_analyzed, komi):
-    sgf_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'games', filepath)
-    with open(sgf_path, 'rb') as f:
-        text = f.read().decode('utf-8', errors='replace')
+    safe_path = filepath.replace('\\', os.sep)
+    sgf_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'games', safe_path)
+    try:
+        with open(sgf_path, 'rb') as f:
+            text = f.read().decode('utf-8', errors='replace')
+    except FileNotFoundError:
+        return None
 
     moves = parse_moves(text)
     if not moves:

@@ -10,7 +10,7 @@ export default function Progress() {
   useEffect(() => {
     api('/me/stats')
       .then(setStats)
-      .catch(() => {})
+      .catch(e => { console.error('Failed to load stats:', e) })
       .finally(() => setLoading(false))
   }, [])
 
@@ -139,22 +139,39 @@ export default function Progress() {
             <div className="space-y-2">
               {stats.recent?.map((guess, i) => {
                 const rating = getRating(guess.deviation)
+                const hasTurn = guess.turn != null
+                const classes = `flex items-center gap-3 bg-kaya-surface border border-kaya-border rounded-xl p-3 shadow-sm${hasTurn ? ' hover:border-kaya-gold/50 transition-colors cursor-pointer' : ''}`
+                const content = (
+                  <>
+                    <div className="flex-1 min-w-0">
+                      <div className={`text-sm font-semibold ${rating.color}`}>
+                        {rating.label}
+                      </div>
+                      <div className="text-xs text-kaya-muted mt-0.5">
+                        <span className="text-kaya-text">Guess: {guess.guessed_score >= 0 ? '+' : ''}{guess.guessed_score}</span>
+                        <span className="mx-2">|</span>
+                        <span className="text-kaya-text">Actual: {guess.actual_score >= 0 ? '+' : ''}{guess.actual_score}</span>
+                        <span className="mx-2">|</span>
+                        <span className="font-mono text-kaya-muted">{guess.deviation.toFixed(1)} pts</span>
+                      </div>
+                    </div>
+                    {hasTurn && (
+                      <svg className="w-4 h-4 text-kaya-muted flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    )}
+                  </>
+                )
+                if (hasTurn) {
+                  return (
+                    <Link key={i} to={`/play?game=${guess.game_id}&turn=${guess.turn}`} className={classes}>
+                      {content}
+                    </Link>
+                  )
+                }
                 return (
-                  <div
-                    key={i}
-                    className="flex items-center gap-3 bg-kaya-surface border border-kaya-border rounded-xl p-3 shadow-sm"
-                  >
-                    <div className={`text-sm font-semibold w-20 ${rating.color}`}>
-                      {rating.label}
-                    </div>
-                    <div className="flex-1 text-xs text-kaya-muted">
-                      <span className="text-kaya-text">Guess: {guess.guessed_score >= 0 ? '+' : ''}{guess.guessed_score}</span>
-                      <span className="mx-2">|</span>
-                      <span className="text-kaya-text">Actual: {guess.actual_score >= 0 ? '+' : ''}{guess.actual_score}</span>
-                    </div>
-                    <div className="text-xs text-kaya-muted font-mono">
-                      {guess.deviation.toFixed(1)} pts
-                    </div>
+                  <div key={i} className={classes}>
+                    {content}
                   </div>
                 )
               })}

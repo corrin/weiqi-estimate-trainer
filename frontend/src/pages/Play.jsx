@@ -33,6 +33,7 @@ export default function Play() {
         window.history.replaceState(null, '', `/play?game=${data.game_id}&turn=${data.turn}`)
       }
     } catch (e) {
+      console.error('Failed to load position:', e)
       setError(e.message || 'Failed to load position')
     }
     setLoading(false)
@@ -49,11 +50,13 @@ export default function Play() {
         method: 'POST',
         body: JSON.stringify({
           game_id: position.game_id,
+          turn: position.turn,
           guessed_score: guessedScore,
         }),
       })
       setResult(data)
     } catch (e) {
+      console.error('Failed to submit guess:', e)
       setError(e.message || 'Failed to submit guess')
     }
   }

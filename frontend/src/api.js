@@ -12,9 +12,16 @@ export async function api(path, options = {}) {
     ...options.headers,
   }
 
-  const res = await fetch(`${API_BASE}${path}`, { ...options, headers })
+  let res
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...options, headers })
+  } catch (e) {
+    console.error(`API fetch failed: ${path}`, e)
+    throw e
+  }
 
   if (res.status === 401) {
+    console.error(`API 401: ${path}`)
     localStorage.removeItem('token')
     localStorage.removeItem('email')
     localStorage.removeItem('name')
@@ -22,8 +29,12 @@ export async function api(path, options = {}) {
   }
 
   if (!res.ok) {
-    const err = await res.json().catch(() => ({ detail: 'Request failed' }))
-    throw new Error(err.detail || 'Request failed')
+    const err = await res.json().catch(() => {
+      console.error(`API ${res.status} (non-JSON): ${path}`)
+      return { detail: `Request failed (${res.status})` }
+    })
+    console.error(`API ${res.status}: ${path}`, err.detail)
+    throw new Error(err.detail || `Request failed (${res.status})`)
   }
 
   return res.json()

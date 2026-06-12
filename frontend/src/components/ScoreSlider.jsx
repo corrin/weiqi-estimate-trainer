@@ -54,7 +54,7 @@ export default function ScoreSlider({ onSubmit, loading }) {
           value={score}
           onChange={(e) => setScore(parseFloat(e.target.value))}
           className="w-full h-3 rounded-full appearance-none cursor-pointer
-            bg-[linear-gradient(to_right,rgb(var(--kaya-bg))_0%,rgb(var(--kaya-border))_48%,rgb(var(--kaya-gold))_50%,rgb(var(--kaya-border))_52%,rgb(var(--kaya-wood))_100%)]
+            bg-[linear-gradient(to_right,rgb(250,246,238)_0%,rgb(232,220,197)_48%,rgb(196,148,56)_50%,rgb(232,220,197)_52%,rgb(74,55,40)_100%)]
             accent-kaya-gold
             [&::-webkit-slider-thumb]:w-7 [&::-webkit-slider-thumb]:h-7
             [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-lg

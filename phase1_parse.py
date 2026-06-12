@@ -73,7 +73,7 @@ def parse_one(filepath):
     moves = len(re.findall(r';(B|W)\[(?:[a-z]{2}|tt|)\]', text))
     result_type, score_pts = parse_result(re_val)
 
-    rel = os.path.relpath(filepath, ROOT)
+    rel = os.path.relpath(filepath, ROOT).replace(os.sep, '/')
     tournament = os.path.dirname(rel)
 
     return {

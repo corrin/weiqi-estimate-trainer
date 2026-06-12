@@ -39,6 +39,11 @@ def init_user_tables():
     """)
     con.execute("CREATE INDEX IF NOT EXISTS idx_guesses_user ON guesses(user_id)")
     con.execute("CREATE INDEX IF NOT EXISTS idx_guesses_deviation ON guesses(deviation)")
+    try:
+        con.execute("ALTER TABLE guesses ADD COLUMN turn INTEGER")
+    except sqlite3.OperationalError:
+        pass
+    con.execute("CREATE INDEX IF NOT EXISTS idx_guesses_user_game_turn ON guesses(user_id, game_id, turn)")
     con.execute("""
         CREATE TABLE IF NOT EXISTS game_positions (
             game_id INTEGER NOT NULL REFERENCES games(id),

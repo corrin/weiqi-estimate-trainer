@@ -10,7 +10,7 @@ export default function Leaderboard() {
   useEffect(() => {
     api('/leaderboard')
       .then(setEntries)
-      .catch(() => {})
+      .catch(e => { console.error('Failed to load leaderboard:', e) })
       .finally(() => setLoading(false))
   }, [])
 
