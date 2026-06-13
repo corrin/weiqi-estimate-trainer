@@ -1,7 +1,10 @@
 import sys
-sys.path.insert(0, "C:/Users/User/source/weiqi_estimator/backend")
-from database import get_app_db, init_app_db
-from auth import create_session_token
+from pathlib import Path
+
+# Import backend as a package so its relative imports (e.g. `from .migrations`) resolve.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from backend.database import get_app_db, init_app_db
+from backend.auth import create_session_token
 
 init_app_db()
 con = get_app_db()

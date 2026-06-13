@@ -1,0 +1,12 @@
+#!/bin/sh
+# Run the Playwright E2E suite before every push.
+#
+# Exists because the API once switched its response keys (game_id -> filepath)
+# while the tests kept asserting the old shape, and nothing caught the drift.
+# Requires the app already running on :8001. Bypass with `git push --no-verify`.
+set -eu
+
+cd "$(git rev-parse --show-toplevel)"
+
+export "$(.venv/Scripts/python.exe tests/gen_token.py | grep '^TEST_TOKEN=')"
+npx playwright test

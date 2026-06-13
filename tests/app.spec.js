@@ -103,12 +103,12 @@ test('guess submission works end-to-end @smoke', async ({ request }) => {
   });
   expect(posRes.status()).toBe(200);
   const position = await posRes.json();
-  expect(position.game_id).toBeTruthy();
+  expect(position.filepath).toBeTruthy();
   expect(position.stones).toBeTruthy();
 
   const guessRes = await request.post('/api/guess', {
     headers: { Authorization: `Bearer ${TEST_TOKEN}` },
-    data: { game_id: position.game_id, guessed_score: 4 },
+    data: { filepath: position.filepath, turn: position.turn, guessed_score: 4 },
   });
   expect(guessRes.status()).toBe(200);
   const result = await guessRes.json();
