@@ -46,3 +46,7 @@ playwright-report/
 # Temp
 test_board.py
 adhoc/
+
+# KataGo binaries (downloaded, not vendored)
+katago-v*/
+*.log

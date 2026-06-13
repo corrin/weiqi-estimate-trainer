@@ -88,11 +88,19 @@ python phase2_filter.py
 
 # Phase 3 — Verify: KataGo Chinese final query for each eligible game
 #   Verified when abs(chinese_score - score_points) ≤ 1.5
+#   Queries are pipelined (~64 games in flight) to keep the GPU saturated
 python phase3_verify.py --max 1000
 
 # Phase 4 — Analyze: per-turn KataGo for verified games (turns 76..end-50)
-#   close_score=1 when abs(score_lead - chinese_score) ≤ 1.5
+#   Chinese rules, komi 7.0 (same setup as phase 3's chinese_score)
+#   Two-pass adaptive: 150 visits everywhere, 1000 visits for turns within
+#   4.0 pts of the final score; close_score=1 when abs ≤ 1.5
+#   --audit 5 rechecks 5% of cheap-pass turns at full visits and reports flips
 python phase4_analyze.py --max 1000
+
+# Both accept --katago/--model/--config (defaults prefer the TensorRT build in
+# katago-v*/, falling back to KaTrain's bundled OpenCL);
+# analysis_bulk.cfg is the throughput-tuned engine config.
 ```
 
 Positions served to users come from `verified` games with `close_score=1` turns only.
