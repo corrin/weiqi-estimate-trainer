@@ -79,13 +79,31 @@ def serve_position(
             WHERE ga.filepath = ? AND ga.turn = ?
         """, (filepath, turn)).fetchone()
     else:
-        row = con.execute("""
+        # Skip positions the user recently solved so "next" keeps serving fresh
+        # problems. Cap at 500 so a heavy user can still cycle back eventually.
+        con_app = get_app_db()
+        solved = con_app.execute(
+            "SELECT filepath, turn FROM guesses WHERE user_id = ? ORDER BY created_at DESC LIMIT 500",
+            (user["user_id"],),
+        ).fetchall()
+        con_app.close()
+        excluded = ["{}:{}".format(r["filepath"], r["turn"]) for r in solved]
+
+        base = """
             SELECT ga.filepath, ga.turn, g.komi, g.handicap, g.board_size, g.num_moves
             FROM game_analysis ga
             JOIN games g ON ga.filepath = g.filepath
             WHERE g.verified = 1 AND ga.close_score = 1
-            ORDER BY RANDOM() LIMIT 1
-        """).fetchone()
+        """
+        if excluded:
+            placeholders = ",".join("?" * len(excluded))
+            query = base + " AND (ga.filepath || ':' || ga.turn) NOT IN ({}) ORDER BY RANDOM() LIMIT 1".format(placeholders)
+            row = con.execute(query, excluded).fetchone()
+            # Pool exhausted within the last 500 — fall back to any position.
+            if not row:
+                row = con.execute(base + " ORDER BY RANDOM() LIMIT 1").fetchone()
+        else:
+            row = con.execute(base + " ORDER BY RANDOM() LIMIT 1").fetchone()
 
     con.close()
 
@@ -213,12 +231,20 @@ def user_stats(user=Depends(get_current_user)):
 
 @router.get("/stats")
 def public_stats():
+    # Count what's actually playable, using the same gate as serve_position:
+    # a settled position (close_score=1) on a verified game. A non-null
+    # chinese_score does not make a game servable, so don't advertise it.
     con = get_games_db()
-    row = con.execute(
-        "SELECT COUNT(*) as count FROM games WHERE chinese_score IS NOT NULL"
-    ).fetchone()
+    row = con.execute("""
+        SELECT
+            COUNT(*) AS problem_count,
+            COUNT(DISTINCT ga.filepath) AS game_count
+        FROM game_analysis ga
+        JOIN games g ON ga.filepath = g.filepath
+        WHERE g.verified = 1 AND ga.close_score = 1
+    """).fetchone()
     con.close()
-    return {"game_count": row["count"]}
+    return {"game_count": row["game_count"], "problem_count": row["problem_count"]}
 
 
 @router.get("/leaderboard")

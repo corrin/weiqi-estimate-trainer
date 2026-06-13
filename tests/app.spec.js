@@ -8,7 +8,7 @@ test('splash renders headline, sign-in, and stat cards @smoke', async ({ page })
   await page.goto('/');
   await expect(page.locator('h1')).toContainText('score sense');
   await expect(page.getByRole('button', { name: 'Sign in with Google' })).toBeVisible();
-  await expect(page.getByText('Real games', { exact: true })).toBeVisible();
+  await expect(page.getByText('Real puzzles', { exact: true })).toBeVisible();
   await page.screenshot({ path: 'tests/screenshots/splash.png', fullPage: true });
 });
 

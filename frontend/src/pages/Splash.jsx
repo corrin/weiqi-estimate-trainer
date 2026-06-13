@@ -8,12 +8,12 @@ export default function Splash() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const [showPrivacy, setShowPrivacy] = useState(false)
-  const [gameCount, setGameCount] = useState(null)
+  const [problemCount, setProblemCount] = useState(null)
 
   useEffect(() => {
     fetch('/api/stats')
       .then(r => r.json())
-      .then(d => setGameCount(d.game_count))
+      .then(d => setProblemCount(d.problem_count))
       .catch(() => {})
   }, [])
 
@@ -98,13 +98,13 @@ export default function Splash() {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl w-full mt-8">
           <div className="bg-kaya-surface border border-kaya-border rounded-xl p-4 text-center">
             <div className="text-2xl font-bold text-kaya-gold font-serif">
-              {gameCount !== null ? gameCount.toLocaleString() : '...'}
+              {problemCount !== null ? problemCount.toLocaleString() : '...'}
             </div>
-            <div className="text-xs text-kaya-muted mt-1">Real games</div>
+            <div className="text-xs text-kaya-muted mt-1">Real puzzles</div>
           </div>
           <div className="bg-kaya-surface border border-kaya-border rounded-xl p-4 text-center">
-            <div className="text-2xl font-bold text-kaya-gold font-serif">Instant</div>
-            <div className="text-xs text-kaya-muted mt-1">Accuracy feedback</div>
+            <div className="text-2xl font-bold text-kaya-gold font-serif">Progress</div>
+            <div className="text-xs text-kaya-muted mt-1">history</div>
           </div>
           <div className="bg-kaya-surface border border-kaya-border rounded-xl p-4 text-center">
             <div className="text-2xl font-bold text-kaya-gold font-serif">Free</div>

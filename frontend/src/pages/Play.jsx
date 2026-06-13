@@ -29,7 +29,9 @@ export default function Play() {
       }
       const data = await api(url)
       setPosition(data)
-      if (!g || !t) {
+      // For a random "next" fetch, point the URL at whatever we just loaded so
+      // refreshing or sharing won't snap back to the previous position.
+      if (!specific || !g || !t) {
         window.history.replaceState(null, '', `/play?game=${encodeURIComponent(data.filepath)}&turn=${data.turn}`)
       }
     } catch (e) {
@@ -133,7 +135,7 @@ export default function Play() {
         ) : null}
 
         {result && (
-          <ResultOverlay result={result} onNext={fetchPosition} />
+          <ResultOverlay result={result} onNext={() => fetchPosition(false)} />
         )}
       </main>
     </div>

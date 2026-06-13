@@ -2,7 +2,13 @@
 
 Train your Go positional judgment by guessing score differences from real professional games. Positions are analyzed by KataGo to give you ground-truth accuracy feedback.
 
-**[weiqi-estimate-trainer.ngrok-free.app](https://weiqi-estimate-trainer.ngrok-free.app/)**
+**[weiqi-estimate-trainer.ngrok-free.app](https://weiqi.docketworks.site/)**
+
+## Why this exists
+
+It's a training tool — a modern rewrite of a TCL/Tk script I wrote in the 1990s to drill one skill: look at a Go position and judge who's ahead, and by how much.
+
+A trainer that grades you against a wrong number teaches the wrong instinct, so the answer is the one thing this app can't get wrong. A game's recorded result only says who won, not the score at some midpoint — so KataGo validates every position before it's shown, and only settled ones are kept.
 
 ## How it works
 
@@ -89,14 +95,13 @@ python phase2_filter.py
 # Phase 3 — Verify: KataGo Chinese final query for each eligible game
 #   Verified when abs(chinese_score - score_points) ≤ 1.5
 #   Queries are pipelined (~64 games in flight) to keep the GPU saturated
-python phase3_verify.py --max 1000
+python phase3_verify.py
 
 # Phase 4 — Analyze: per-turn KataGo for verified games (turns 76..end-50)
 #   Chinese rules, komi 7.0 (same setup as phase 3's chinese_score)
-#   Two-pass adaptive: 150 visits everywhere, 1000 visits for turns within
-#   4.0 pts of the final score; close_score=1 when abs ≤ 1.5
-#   --audit 5 rechecks 5% of cheap-pass turns at full visits and reports flips
-python phase4_analyze.py --max 1000
+#   Every turn at 1000 visits; raw score_lead stored, close_score=1 when abs ≤ 1.5
+#   (score_lead kept for every turn, so the threshold can be re-derived in SQL)
+python phase4_analyze.py
 
 # Both accept --katago/--model/--config (defaults prefer the TensorRT build in
 # katago-v*/, falling back to KaTrain's bundled OpenCL);
@@ -124,10 +129,18 @@ cd frontend && npm run dev
 
 **Option C: Production build + ngrok**
 
+The backend serves the built `dist/` (not Vite's dev server), so frontend edits
+only appear once `dist` is rebuilt. Use `build:watch` to rebuild on every change —
+then a plain browser refresh picks it up, with no backend restart.
+
 ```bash
-cd frontend && npm run build
+# Terminal 1 — rebuild dist on every frontend change
+cd frontend && npm run build:watch
+
+# Terminal 2 — backend serves dist/ as static files on port 8001
 uvicorn backend.main:app --host 0.0.0.0 --port 8001
-# FastAPI serves dist/ as static files on port 8001
+
+# Terminal 3 — public tunnel
 ngrok http 8001
 ```
 
